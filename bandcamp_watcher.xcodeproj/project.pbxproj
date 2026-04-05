@@ -6,6 +6,28 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FD35FB142F831EF000824B8C /* libwatcherlib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FD35FB072F831D8800824B8C /* libwatcherlib.a */; };
+		FD35FB222F831FE100824B8C /* libwatcherlib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FD35FB072F831D8800824B8C /* libwatcherlib.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		FD35FB112F831DCF00824B8C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FD3E170E2E02C9F600309224 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FD35FB062F831D8800824B8C;
+			remoteInfo = watcherlib;
+		};
+		FD35FB232F831FE100824B8C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FD3E170E2E02C9F600309224 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FD35FB062F831D8800824B8C;
+			remoteInfo = watcherlib;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		FD3E17142E02C9F600309224 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -19,32 +41,103 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		FD35FB072F831D8800824B8C /* libwatcherlib.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libwatcherlib.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		FD35FB1E2F831FE100824B8C /* tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FD35FB4B2F8320E400824B8C /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = TestPlan.xctestplan; path = tests/TestPlan.xctestplan; sourceTree = "<group>"; };
 		FD3E17162E02C9F600309224 /* bandcamp_watcher */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = bandcamp_watcher; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FD35FB0F2F831DAE00824B8C /* Exceptions for "bandcamp_watcher" folder in "watcherlib" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				lib/bandcamp.c,
+				lib/bandcamp.h,
+				lib/copy.c,
+				lib/copy.h,
+				lib/log.c,
+				lib/log.h,
+				lib/utils.c,
+				lib/utils.h,
+			);
+			publicHeaders = (
+				lib/bandcamp.h,
+				lib/copy.h,
+				lib/log.h,
+				lib/utils.h,
+			);
+			target = FD35FB062F831D8800824B8C /* watcherlib */;
+		};
+		FD35FB102F831DC800824B8C /* Exceptions for "bandcamp_watcher" folder in "bandcamp_watcher" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				lib/bandcamp.c,
+				lib/copy.c,
+				lib/log.c,
+				lib/utils.c,
+			);
+			target = FD3E17152E02C9F600309224 /* bandcamp_watcher */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		FD35FB1F2F831FE100824B8C /* tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = tests;
+			sourceTree = "<group>";
+		};
 		FD3E17182E02C9F600309224 /* bandcamp_watcher */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FD35FB102F831DC800824B8C /* Exceptions for "bandcamp_watcher" folder in "bandcamp_watcher" target */,
+				FD35FB0F2F831DAE00824B8C /* Exceptions for "bandcamp_watcher" folder in "watcherlib" target */,
+			);
 			path = bandcamp_watcher;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		FD3E17132E02C9F600309224 /* Frameworks */ = {
+		FD35FB052F831D8800824B8C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FD35FB1B2F831FE100824B8C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FD35FB222F831FE100824B8C /* libwatcherlib.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD3E17132E02C9F600309224 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FD35FB142F831EF000824B8C /* libwatcherlib.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		FD35FB132F831EF000824B8C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		FD3E170D2E02C9F600309224 = {
 			isa = PBXGroup;
 			children = (
+				FD35FB4B2F8320E400824B8C /* TestPlan.xctestplan */,
 				FD3E17182E02C9F600309224 /* bandcamp_watcher */,
+				FD35FB1F2F831FE100824B8C /* tests */,
+				FD35FB132F831EF000824B8C /* Frameworks */,
 				FD3E17172E02C9F600309224 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -53,13 +146,67 @@
 			isa = PBXGroup;
 			children = (
 				FD3E17162E02C9F600309224 /* bandcamp_watcher */,
+				FD35FB072F831D8800824B8C /* libwatcherlib.a */,
+				FD35FB1E2F831FE100824B8C /* tests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
+/* Begin PBXHeadersBuildPhase section */
+		FD35FB032F831D8800824B8C /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
 /* Begin PBXNativeTarget section */
+		FD35FB062F831D8800824B8C /* watcherlib */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FD35FB0A2F831D8800824B8C /* Build configuration list for PBXNativeTarget "watcherlib" */;
+			buildPhases = (
+				FD35FB032F831D8800824B8C /* Headers */,
+				FD35FB042F831D8800824B8C /* Sources */,
+				FD35FB052F831D8800824B8C /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = watcherlib;
+			packageProductDependencies = (
+			);
+			productName = watcherlib;
+			productReference = FD35FB072F831D8800824B8C /* libwatcherlib.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+		FD35FB1D2F831FE100824B8C /* tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FD35FB252F831FE100824B8C /* Build configuration list for PBXNativeTarget "tests" */;
+			buildPhases = (
+				FD35FB1A2F831FE100824B8C /* Sources */,
+				FD35FB1B2F831FE100824B8C /* Frameworks */,
+				FD35FB1C2F831FE100824B8C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FD35FB242F831FE100824B8C /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				FD35FB1F2F831FE100824B8C /* tests */,
+			);
+			name = tests;
+			packageProductDependencies = (
+			);
+			productName = tests;
+			productReference = FD35FB1E2F831FE100824B8C /* tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		FD3E17152E02C9F600309224 /* bandcamp_watcher */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FD3E171D2E02C9F600309224 /* Build configuration list for PBXNativeTarget "bandcamp_watcher" */;
@@ -71,6 +218,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				FD35FB122F831DCF00824B8C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				FD3E17182E02C9F600309224 /* bandcamp_watcher */,
@@ -91,6 +239,12 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					FD35FB062F831D8800824B8C = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					FD35FB1D2F831FE100824B8C = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					FD3E17152E02C9F600309224 = {
 						CreatedOnToolsVersion = 16.3;
 					};
@@ -111,11 +265,37 @@
 			projectRoot = "";
 			targets = (
 				FD3E17152E02C9F600309224 /* bandcamp_watcher */,
+				FD35FB062F831D8800824B8C /* watcherlib */,
+				FD35FB1D2F831FE100824B8C /* tests */,
 			);
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		FD35FB1C2F831FE100824B8C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
+		FD35FB042F831D8800824B8C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD35FB1A2F831FE100824B8C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FD3E17122E02C9F600309224 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -125,7 +305,76 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		FD35FB122F831DCF00824B8C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FD35FB062F831D8800824B8C /* watcherlib */;
+			targetProxy = FD35FB112F831DCF00824B8C /* PBXContainerItemProxy */;
+		};
+		FD35FB242F831FE100824B8C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FD35FB062F831D8800824B8C /* watcherlib */;
+			targetProxy = FD35FB232F831FE100824B8C /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		FD35FB082F831D8800824B8C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CC95DP9Z6B;
+				EXECUTABLE_PREFIX = lib;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
+		FD35FB092F831D8800824B8C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = CC95DP9Z6B;
+				EXECUTABLE_PREFIX = lib;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		FD35FB262F831FE100824B8C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CC95DP9Z6B;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = bluesplatcomputers.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Debug;
+		};
+		FD35FB272F831FE100824B8C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CC95DP9Z6B;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = bluesplatcomputers.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+			};
+			name = Release;
+		};
 		FD3E171B2E02C9F600309224 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -250,6 +499,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -259,6 +509,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				DEAD_CODE_STRIPPING = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -266,6 +517,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		FD35FB0A2F831D8800824B8C /* Build configuration list for PBXNativeTarget "watcherlib" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FD35FB082F831D8800824B8C /* Debug */,
+				FD35FB092F831D8800824B8C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FD35FB252F831FE100824B8C /* Build configuration list for PBXNativeTarget "tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FD35FB262F831FE100824B8C /* Debug */,
+				FD35FB272F831FE100824B8C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		FD3E17112E02C9F600309224 /* Build configuration list for PBXProject "bandcamp_watcher" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
