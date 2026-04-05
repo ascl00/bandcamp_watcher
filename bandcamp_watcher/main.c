@@ -16,6 +16,7 @@
 #include <dirent.h>      // for opendir()
 #include <sys/stat.h>    // for stat()
 #include <sys/time.h>    // for timespec_diff_macro()
+#include <limits.h>
 
 #include "log/log.h"    // logging functions
 #include "copy.h"
