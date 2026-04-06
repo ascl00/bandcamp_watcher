@@ -8,6 +8,10 @@
 #include "utils.h"
 #include <ctype.h>
 #include <string.h>
+#include <stdio.h>
+#include <dirent.h>
+#include <stdlib.h>
+#include <sys/stat.h>
 
 /* Similar to strncasecmp however wont fail a match if puncuation characters mismatch
  * NOTE: Should this skip/compress whitespace?
@@ -87,4 +91,88 @@ int parse_bool(const char *str)
     }
     
     return 0;  // Default to false for unrecognized
+}
+
+/* Count files with specific extension in directory */
+size_t files_with_extension(const char *path, const char *ext)
+{
+    DIR *d = opendir(path);
+    size_t count = 0;
+    
+    if(!d)
+    {
+        return 0;
+    }
+    struct dirent *de = NULL;
+    
+    while ( (de = readdir(d)) != NULL)
+    {
+        if (de->d_type == DT_REG && is_matching_extension(de->d_name, ext) == 0)
+        {
+            count++;
+        }
+    }
+    
+    (void)closedir(d);
+    
+    return count;
+}
+
+/* Count files matching any of the provided extensions */
+size_t files_with_extensions(const char *path, const char **exts, int num_exts)
+{
+    DIR *d = opendir(path);
+    size_t count = 0;
+    
+    if(!d)
+    {
+        return 0;
+    }
+    struct dirent *de = NULL;
+    
+    while ( (de = readdir(d)) != NULL)
+    {
+        if (de->d_type == DT_REG)
+        {
+            for (int i = 0; i < num_exts; i++) {
+                if (is_matching_extension(de->d_name, exts[i]) == 0)
+                {
+                    count++;
+                    break;
+                }
+            }
+        }
+    }
+    
+    (void)closedir(d);
+    
+    return count;
+}
+
+/* Count total files in directory (all types, excluding . and ..) */
+size_t total_files_in_dir(const char *path)
+{
+    DIR *d = opendir(path);
+    size_t count = 0;
+    
+    if(!d)
+    {
+        return 0;
+    }
+    struct dirent *de = NULL;
+    
+    while ( (de = readdir(d)) != NULL)
+    {
+        if (de->d_type == DT_REG)
+        {
+            if (strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
+            {
+                count++;
+            }
+        }
+    }
+    
+    (void)closedir(d);
+    
+    return count;
 }
