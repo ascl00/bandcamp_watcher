@@ -26,4 +26,24 @@ char *trim(char *str);
  */
 int parse_bool(const char *str);
 
+/* Count files with specific extension in directory */
+size_t files_with_extension(const char *path, const char *ext);
+
+/* Count files matching any of the provided extensions
+ * exts: array of extension strings (e.g., ["flac", "aac"])
+ * num_exts: number of extensions in array
+ */
+size_t files_with_extensions(const char *path, const char **exts, int num_exts);
+
+/* Count files with sequential numbering (01, 02, 03...) matching any extension
+ * Returns count of valid sequential files
+ * max_track: filled with highest track number found
+ * Returns 0 if no sequential files found or sequence is broken
+ */
+size_t files_with_sequential_numbers(const char *path, const char **exts, 
+                                       int num_exts, int *max_track);
+
+/* Count total files in directory (all types, excluding . and ..) */
+size_t total_files_in_dir(const char *path);
+
 #endif /* UTILS_H */
