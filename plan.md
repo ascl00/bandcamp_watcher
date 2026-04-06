@@ -1,266 +1,180 @@
-# Implementation Plan: Command Line Arguments and Configuration
-
-## Overview
-Add comprehensive command line argument parsing and configuration file support to bandcamp_watcher, enabling flexible runtime configuration without recompilation.
-
-## Goals
-1. Parse command line arguments using getopt_long
-2. Support XDG-compliant configuration files
-3. Add oneshot mode with dry-run and confirmation options
-4. Make Apple Music integration toggleable (enabled by default)
-5. Support variable-length extension-to-directory mappings
-
-## New Files to Create
-
-### lib/config.h
-- Define `log_level_t` typedef (moved from log.h enum)
-- Define `ext_mapping_t` struct for extension->directory pairs
-- Define `config_t` struct holding all configuration
-- Function declarations:
-  - `int config_load(config_t *config, int argc, char *argv[])`
-  - `void config_free(config_t *config)`
-  - `void config_print(const config_t *config)`
-  - `char *get_xdg_config_path(void)`
-
-### lib/config.c
-- XDG Base Directory specification implementation
-- INI-style config file parsing
-- Default value initialization
-- Configuration priority: CLI args > config file > defaults
-
-### lib/args.h
-- Function declarations for CLI parsing
-- `int parse_args(config_t *config, int argc, char *argv[])`
-
-### lib/args.c
-- getopt_long implementation
-- Support for:
-  - `-w, --watch DIR`
-  - `-e, --ext EXT:DIR` (repeatable)
-  - `-o, --oneshot`
-  - `-c, --confirm`
-  - `-d, --dry-run`
-  - `--no-apple-music`
-  - `-f, --config FILE`
-  - `-v, --verbose`
-  - `-q, --quiet`
-  - `-h, --help`
-
-## Modified Files
-
-### lib/log.h
-Add typedef for log level enum:
-```c
-typedef enum {
-    LOG_DEBUG = -32,
-    LOG_TRACE = 0,
-    LOG_INFO = 32,
-    LOG_WARN = 64,
-    LOG_ERROR = 96,
-    LOG_FATAL = 128,
-} log_level_t;
-```
-
-### bandcamp_watcher/main.c
-- Replace hardcoded paths with config system
-- Add oneshot mode logic (run once, exit)
-- Add dry-run mode (simulate without changes)
-- Add confirmation prompts
-- Integrate Apple Music whitelist check
-
-### tests/ConfigTests.m (new)
-- Test config file parsing
-- Test CLI argument parsing
-- Test priority ordering (CLI > config > defaults)
-- Test XDG path resolution
-
-## Data Structures
-
-```c
-// Extension to directory mapping
-typedef struct {
-    char *ext;           // e.g., "flac", "aac"
-    char *target_dir;    // destination directory path
-} ext_mapping_t;
-
-// Main configuration structure
-typedef struct {
-    char *watch_dir;           // Directory to watch (default: ~/Downloads)
-    ext_mapping_t *mappings;   // Dynamic array of extension mappings
-    int num_mappings;          // Count of mappings
-    int oneshot;              // Bool: run once and exit
-    int confirm;              // Bool: prompt before each action
-    int dry_run;              // Bool: simulate only, no changes
-    int apple_music;          // Bool: add to Apple Music (default: true)
-    log_level_t log_level;    // Logging verbosity
-} config_t;
-```
-
-## Configuration Priority
-1. Command line arguments (highest)
-2. Configuration file values
-3. Built-in defaults (lowest)
-
-## Configuration File Format
-
-Path: `$XDG_CONFIG_HOME/bandcamp_watcher/config`
-(fallback: `~/.config/bandcamp_watcher/config`)
-
-Format: INI-style
-```ini
-# Global settings
-watch_dir = ~/Downloads
-log_level = info
-apple_music = true
-
-# Extension mappings [extensions]
-flac = /Volumes/Multimedia/Music/FLAC
-aac = /Volumes/Multimedia/Music/aac
-m4a = /Volumes/Multimedia/Music/aac
-```
-
-## Apple Music Integration
-
-**Supported formats (whitelist):**
-- aac
-- m4a
-- mp3
-- alac
-
-**Not supported:**
-- flac
-
-When `apple_music` is enabled and a matching folder contains files in supported formats, the destination folder will be added to Apple Music after copying.
-
-## Command Line Interface
-
-```
-bandcamp_watcher [OPTIONS]
-
-Options:
-  -w, --watch DIR           Directory to watch (default: ~/Downloads)
-  -e, --ext EXT:DIR         Extension:directory mapping pair (repeatable)
-                           Example: -e flac:/path/to/flac -e aac:/path/to/aac
-  -o, --oneshot             Run once and exit (no watching)
-  -c, --confirm             Prompt for confirmation before each action
-  -d, --dry-run             Simulate only, no actual changes (implies oneshot)
-  -A, --no-apple-music      Disable Apple Music integration
-  -f, --config FILE         Configuration file path
-  -v, --verbose             Enable verbose/debug logging
-  -q, --quiet               Suppress non-error output
-  -h, --help                Display help and exit
-```
-
-## Oneshot Mode with Confirmation
-
-When both `--oneshot` and `--confirm` are specified:
-
-```
-Found: Band - Album (flac)
-  Source: /Users/nick/Downloads/Band - Album
-  Destination: /Volumes/Music/FLAC/Band/Album
-  Files: 12 tracks
-
-Process this album? [y/n/s/q]
-```
-
-- `y` - Process this folder
-- `n` - Skip this folder
-- `s` - Skip remaining folders
-- `q` - Quit immediately
-
-## Dry-Run Mode
-
-When `--dry-run` is specified:
-- Implies `--oneshot` (no watching)
-- Logs actions via `log_info()` but doesn't execute them
-- Shows what would be copied and where
-- Indicates whether Apple Music would be notified
-
-Example output:
-```
-[DRY RUN] Found: Band - Album (flac)
-  Source: /Users/nick/Downloads/Band - Album
-  Destination: /Volumes/Music/FLAC/Band/Album
-  Would copy 12 files
-  Would NOT add to Apple Music (flac not in supported formats)
-```
-
-## Default Values
-
-| Setting | Default Value |
-|---------|---------------|
-| watch_dir | $HOME/Downloads |
-| log_level | LOG_INFO |
-| apple_music | true (1) |
-| oneshot | false (0) |
-| confirm | false (0) |
-| dry_run | false (0) |
-
-## Implementation Notes
-
-### Extension Mapping Parsing
-- CLI format: `-e flac:/path/to/dir`
-- Use `strchr()` to find colon separator
-- Support multiple `-e` arguments via dynamic array (realloc)
-- Config file: one line per mapping in [extensions] section
-
-### XDG Path Resolution
-1. Check `$XDG_CONFIG_HOME`
-2. If unset, use `$HOME/.config`
-3. Append `/bandcamp_watcher/config`
-
-### Log Level Mapping
-- CLI `-v` sets LOG_DEBUG
-- CLI `-q` sets LOG_ERROR
-- Config file uses string names: "debug", "trace", "info", "warn", "error", "fatal"
-- Case-insensitive matching
-
-### Memory Management
-- All strings in config_t must be heap-allocated (strdup)
-- config_free() must release all allocated memory
-- Handle parse errors gracefully (log error, use default)
-
-## Testing Plan
-
-### Unit Tests
-1. **Config file parsing**
-   - Valid config with all options
-   - Missing optional values (use defaults)
-   - Invalid log level string
-   - Malformed extension mapping
-   - Missing config file (should not error)
-
-2. **CLI argument parsing**
-   - Single extension mapping
-   - Multiple extension mappings
-   - All boolean flags
-   - Missing required arguments
-   - Help display
-
-3. **Priority ordering**
-   - CLI overrides config file
-   - Config file overrides defaults
-   - Multiple CLI args (last wins)
-
-4. **XDG path resolution**
-   - $XDG_CONFIG_HOME set
-   - $XDG_CONFIG_HOME unset
-   - $HOME unset (edge case)
-
-### Integration Tests
-1. Dry-run mode output verification
-2. Confirmation prompt handling
-3. Apple Music whitelist check
-
-## Build Integration
-
-- Add `lib/config.c` and `lib/args.c` to static library target
-- Add headers to public headers list
-- Update tests target with new test files
-
-## Future Considerations
-
-- Signal handling for graceful shutdown in watch mode
-- Config file auto-reload on change
-- Plugin system for additional music services
+Recommended defaults in this plan
+- DB path: ~/.local/state/bandcamp_watcher/state.sqlite3 (XDG-style)
+- Launchd label: launched.bandcamp_watcher
+- UI target: Objective-C macOS app (Bandcamp Watcher Status) in same Xcode project
+1) Architecture
+- Daemon (bandcamp_watcher) remains primary source of truth
+  - Watches folders, copies music, optional Apple Music add
+  - Writes operational events/state to SQLite
+- Status app is read-only observer
+  - Queries launchd/SMAppService for service status
+  - Reads SQLite for recent albums and runtime metadata
+- No hard dependency from daemon to UI
+  - If UI never runs, daemon still works normally
+  - If daemon not running, UI still launches and reports state
+2) SQLite Data Model
+Use a small schema with explicit versioning.
+meta
+- key TEXT PRIMARY KEY
+- value TEXT NOT NULL
+- Store schema_version, app version, etc.
+runtime
+Single-row current process/running snapshot.
+- id INTEGER PRIMARY KEY CHECK (id = 1)
+- pid INTEGER
+- mode TEXT NOT NULL (watch, oneshot)
+- status TEXT NOT NULL (starting, running, idle, stopping, stopped, error)
+- started_at INTEGER (unix epoch)
+- heartbeat_at INTEGER (unix epoch)
+- last_error TEXT
+- last_scan_at INTEGER
+events
+Append-only history.
+- id INTEGER PRIMARY KEY AUTOINCREMENT
+- ts INTEGER NOT NULL
+- type TEXT NOT NULL
+  - e.g. watcher_started, watcher_stopped, album_copied, album_skipped, copy_failed, oneshot_completed
+- artist TEXT
+- album TEXT
+- file_type TEXT
+- source_type INTEGER (1=Bandcamp, 2=Qobuz)
+- src_path TEXT
+- dest_path TEXT
+- message TEXT
+- exit_code INTEGER
+Indexes:
+- CREATE INDEX idx_events_ts ON events(ts DESC);
+- CREATE INDEX idx_events_type_ts ON events(type, ts DESC);
+SQLite settings on open:
+- PRAGMA journal_mode=WAL;
+- PRAGMA synchronous=NORMAL;
+- PRAGMA busy_timeout=2000;
+- PRAGMA user_version=1;
+3) Daemon Changes (C)
+Add a new module:
+- lib/state_db.c
+- lib/state_db.h
+Public API (proposed)
+- int state_db_open(const config_t *config, sqlite3 **db_out);
+- int state_db_init_schema(sqlite3 *db);
+- int state_db_update_runtime(sqlite3 *db, ...);
+- int state_db_append_event(sqlite3 *db, ...);
+- int state_db_trim(sqlite3 *db, int max_events);
+- void state_db_close(sqlite3 *db);
+Integration points in main.c
+- On startup:
+  - open/init DB
+  - set runtime status starting -> running
+  - append watcher_started event
+- On each processing cycle:
+  - update heartbeat_at and last_scan_at
+- On successful album copy:
+  - append album_copied with artist/album/file_type/source/dest
+- On failures:
+  - append copy_failed + message
+- On clean shutdown (SIGINT, SIGTERM, normal exit):
+  - set runtime stopping -> stopped
+  - append watcher_stopped
+- In --oneshot:
+  - mode=oneshot
+  - append start + completion event
+  - update runtime appropriately before exit
+Important behavior details
+- If DB write fails, daemon continues (log warning; do not fail copy pipeline)
+- Keep retention bounded:
+  - e.g. keep latest 5,000 events or 30 days (pick one)
+- Optional env override for debugging:
+  - BCW_STATE_DB=/tmp/bcw.sqlite3
+4) Status App (Objective-C) Plan
+You’ll create the target manually; implementation can assume target exists.
+Core classes
+- BCWStatusController
+  - owns NSStatusItem, menu rebuild, timers
+- BCWServiceMonitor
+  - queries launchd/SMAppService status
+- BCWStateStore
+  - read-only SQLite queries using sqlite3
+- BCWConfigReader
+  - reads config file path and displays contents/summary
+Status strategy
+- Primary: launchd status (SMAppService where suitable)
+- Supplemental: runtime row from DB for heartbeat + mode + last error
+- Display should clearly separate:
+  - “Service Enabled/Loaded”
+  - “Last heartbeat Xs ago”
+  - “Last copied album ...”
+Menu content (initial)
+- Bandcamp Watcher: Running/Stopped
+- Mode: watch|oneshot
+- Last heartbeat: 12s ago
+- Separator
+- Recent Albums (last 10 album_copied)
+- Separator
+- Open Config
+- Open State DB Folder
+- Refresh Now
+- Quit
+Refresh cadence:
+- Every 5s (simple polling), and on menu open do immediate refresh
+5) Service Status Query Plan
+Because SMAppService can be limited for arbitrary existing labels, use an abstraction:
+- BCWServiceMonitor
+  - try SMAppService status first
+  - fallback to launchctl print gui/<uid>/launched.bandcamp_watcher parse
+  - return normalized enum:
+    - unknown, enabled_not_running, running, disabled, error
+This keeps the UI future-proof if you later move fully to SMAppService registration.
+6) Config Display (Read-only)
+- Resolve config using same logic as daemon:
+  - $XDG_CONFIG_HOME/bandcamp_watcher/config
+  - fallback ~/.config/bandcamp_watcher/config
+- Show in UI:
+  - watch dir
+  - extension mappings
+  - apple_music on/off
+  - log level
+- Provide “Open in Editor” action only (no in-app edits yet)
+7) Migration and Compatibility
+- Existing users: no migration needed
+- On first run:
+  - daemon auto-creates DB + schema
+- UI behavior when DB missing:
+  - show “No state yet; daemon has not written status”
+- Works with both watch mode and oneshot mode automatically
+8) Testing Plan
+Daemon tests
+- Unit tests for state_db:
+  - schema creation
+  - append/read event correctness
+  - runtime updates
+  - retention trim
+- Integration:
+  - oneshot run writes start/stop + copied events
+  - watch-mode startup writes runtime + heartbeat updates
+UI tests/manual checks
+- App launches with daemon stopped -> shows stopped state
+- Start daemon -> status transitions correctly
+- Copy an album -> recent list updates
+- DB temporarily unavailable -> UI degrades gracefully
+9) Rollout Phases
+Phase 1: State backend in daemon
+- Add state_db module + schema + writes
+- Keep existing stderr logging unchanged
+- Verify all current tests still pass
+Phase 2: Objective-C status target
+- Add menubar UI skeleton + periodic refresh
+- Show service status + runtime row
+Phase 3: Recent albums + config view
+- Add event queries and menu population
+- Add open-config/open-db actions
+Phase 4: polish
+- Retention tuning
+- Better status text and timestamps
+- Error surfacing in UI
+10) Decisions You May Want to Confirm Before Implementation
+1. Retention policy: max 5000 events vs 30 days
+2. DB location preference:
+   - keep XDG state path (recommended)
+   - or move to ~/Library/Application Support/bandcamp_watcher/
+3. Whether to include album_skipped events or only successful copies/errors
+If you want, next I can convert this into a concrete task checklist ordered by file and function so implementation is mechanical.

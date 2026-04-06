@@ -25,10 +25,13 @@
 #include "folder.h"
 #include "config.h"
 #include "args.h"
+#include "state_db.h"
 
 typedef struct {
     config_t *config;
     struct timeval last_run;  // last time we processed an event
+    state_db_t *state_db;
+    struct timeval last_heartbeat;  // last time we wrote heartbeat
 } context_t;
 
 char *flagstring(int flags)
@@ -122,6 +125,11 @@ int process(context_t *context)
     struct timeval start_of_run;
     gettimeofday(&start_of_run, NULL);
     
+    // Update last_scan_at
+    if (context->state_db) {
+        state_db_set_last_scan(context->state_db);
+    }
+    
     DIR *dirp = opendir(config->watch_dir);
     struct dirent *dp = NULL;
     
@@ -168,11 +176,14 @@ int process(context_t *context)
         
         log_debug("Found new directory: %s", dp->d_name);
         
-        band_info_t band_info;
+        band_info_t band_info = {0};  // Zero-initialize the struct
         int source_type;
         if (check_music_folder(path, dp->d_name, &band_info, exts, config->num_mappings, &source_type) != 0) {
             continue;  // Not a recognized music folder
         }
+        
+        log_debug("Band info after check: name='%s', album='%s', type='%s'", 
+                  band_info.name, band_info.album, band_info.file_type);
         
         const char *source_name = (source_type == SOURCE_BANDCAMP) ? "Bandcamp" : 
                                   (source_type == SOURCE_QOBUZ) ? "Qobuz" : "Unknown";
@@ -194,6 +205,14 @@ int process(context_t *context)
         // Check if already exists
         if (dir_exists(dst_path)) {
             log_info("%s already exists, skipping...", dst_path);
+            // Append skipped event
+            if (context->state_db) {
+                state_db_append_event(context->state_db, EVENT_ALBUM_SKIPPED,
+                                      band_info.name, band_info.album,
+                                      band_info.file_type,
+                                      source_type == SOURCE_BANDCAMP ? SOURCE_TYPE_BANDCAMP : SOURCE_TYPE_QOBUZ,
+                                      path, dst_path, "Album already exists", 0);
+            }
             continue;
         }
         
@@ -224,7 +243,23 @@ int process(context_t *context)
             log_info("Copying files to %s", dst_path);
             if (clone(path, dst_path) != 0) {
                 log_error("Failed to copy files to %s", dst_path);
+                // Append failure event
+                if (context->state_db) {
+                    state_db_append_event(context->state_db, EVENT_COPY_FAILED,
+                                          band_info.name, band_info.album,
+                                          band_info.file_type, 
+                                          source_type == SOURCE_BANDCAMP ? SOURCE_TYPE_BANDCAMP : SOURCE_TYPE_QOBUZ,
+                                          path, dst_path, "Failed to copy files", -1);
+                }
                 continue;
+            }
+            // Append success event
+            if (context->state_db) {
+                state_db_append_event(context->state_db, EVENT_ALBUM_COPIED,
+                                      band_info.name, band_info.album,
+                                      band_info.file_type,
+                                      source_type == SOURCE_BANDCAMP ? SOURCE_TYPE_BANDCAMP : SOURCE_TYPE_QOBUZ,
+                                      path, dst_path, NULL, 0);
             }
         }
         
@@ -277,6 +312,19 @@ int watch_folder(context_t *context)
         if (event_count) {
             context_t *ctx = (context_t *)(event_data.udata);
             log_trace("Event occurred on %s", ctx->config->watch_dir);
+            
+            // Update heartbeat every 30 seconds
+            struct timeval now;
+            gettimeofday(&now, NULL);
+            if (ctx->state_db) {
+                struct timeval diff;
+                timersub(&now, &ctx->last_heartbeat, &diff);
+                if (diff.tv_sec >= 30) {
+                    state_db_heartbeat(ctx->state_db);
+                    ctx->last_heartbeat = now;
+                }
+            }
+            
             if (process(ctx) != 0) {
                 break;  // Quit requested
             }
@@ -347,11 +395,30 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
     
+    // Initialize state database
+    state_db_t *state_db = NULL;
+    if (state_db_open(NULL, &state_db) == 0) {
+        int pid = getpid();
+        runtime_mode_t mode = config.oneshot ? RUNTIME_MODE_ONESHOT : RUNTIME_MODE_WATCH;
+        state_db_init_runtime(state_db, mode, pid);
+        state_db_set_runtime_status(state_db, RUNTIME_STATUS_STARTING, NULL);
+        state_db_append_event(state_db, EVENT_WATCHER_STARTED, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0);
+        state_db_set_runtime_status(state_db, RUNTIME_STATUS_RUNNING, NULL);
+        log_debug("State database initialized at %s", state_db_get_path(state_db));
+    } else {
+        log_warn("Failed to initialize state database, continuing without state tracking");
+    }
+    
     // Initialize context
     context_t context = {
         .config = &config,
-        .last_run = {0, 0}
+        .last_run = {0, 0},
+        .state_db = state_db,
+        .last_heartbeat = {0, 0}
     };
+    if (state_db) {
+        gettimeofday(&context.last_heartbeat, NULL);
+    }
     
     log_info("Starting bandcamp_watcher");
     log_info("Watch directory: %s", config.watch_dir);
@@ -376,6 +443,16 @@ int main(int argc, char *argv[])
     }
     
     log_info("Exiting bandcamp_watcher");
+    
+    // Shutdown state database
+    if (context.state_db) {
+        if (config.oneshot) {
+            state_db_append_event(context.state_db, EVENT_ONESHOT_COMPLETED, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0);
+        }
+        state_db_append_event(context.state_db, EVENT_WATCHER_STOPPED, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0);
+        state_db_set_runtime_status(context.state_db, RUNTIME_STATUS_STOPPED, NULL);
+        state_db_close(context.state_db);
+    }
     
     // Cleanup
     config_free(&config);
