@@ -4,6 +4,8 @@ Automatically organize Bandcamp downloads by audio format and add them to your m
 
 A few things. Firstly, I wrote this for my own use, as a MacOS version of BandcampExpand also in this repo. BandcampExpand was immproved on in a few ways, but the main one is that with MacOS I can use kqueue's to monitor for changes, and automatically process them. This is written in C, yes, plain C. The kqueue interface is a C interface, and I possibly should have written this in Rust or Zig and figured out how to interoperate with kqueues, but I needed something and C was the shortest path for me.
 
+I use a mix of Apple Music and Roon, so this allows me to buy music on bandcamp.com, download the FLAC and AAC zips, via my web browser, and have this service automatically expand them and place them in the right locations. It also tells Apple Music that they have been added.
+
 
 ## Overview
 
