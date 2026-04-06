@@ -2,7 +2,7 @@
 //  main.c
 //  bandcamp_watcher
 //
-//  Created by Nick Blievers on 18/6/2025.
+//  Created by Nickg on 18/6/2025.
 //
 
 #include <errno.h>       // for errno

@@ -2,6 +2,9 @@
 
 Automatically organize Bandcamp downloads by audio format and add them to your music library.
 
+A few things. Firstly, I wrote this for my own use, as a MacOS version of BandcampExpand also in this repo. BandcampExpand was immproved on in a few ways, but the main one is that with MacOS I can use kqueue's to monitor for changes, and automatically process them. This is written in C, yes, plain C. The kqueue interface is a C interface, and I possibly should have written this in Rust or Zig and figured out how to interoperate with kqueues, but I needed something and C was the shortest path for me.
+
+
 ## Overview
 
 `bandcamp_watcher` monitors your Downloads folder (or a specified directory) for new Bandcamp album downloads. When it detects a Bandcamp folder structure, it:
