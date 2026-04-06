@@ -29,7 +29,6 @@ static const struct {
 } default_mappings[] = {
     {"flac", "/Volumes/Multimedia/Music/FLAC"},
     {"aac", "/Volumes/Multimedia/Music/aac"},
-    {"mp3", "/Volumes/Multimedia/Music/aac"},
     {NULL, NULL}
 };
 

@@ -22,7 +22,6 @@
 #include "copy.h"
 #include "utils.h"
 #include "bandcamp.h"
-#include "validate.h"
 #include "config.h"
 #include "args.h"
 
@@ -134,17 +133,6 @@ int process(context_t *context)
     int skip_remaining = 0;
     int quit = 0;
     
-    // Build extension list from config mappings
-    const char **exts = malloc(config->num_mappings * sizeof(char*));
-    if (!exts) {
-        log_error("Out of memory building extension list");
-        (void)closedir(dirp);
-        return -1;
-    }
-    for (int i = 0; i < config->num_mappings; i++) {
-        exts[i] = config->mappings[i].ext;
-    }
-    
     while ((dp = readdir(dirp)) != NULL && !quit)
     {
         if (dp->d_type != DT_DIR) continue;
@@ -170,19 +158,20 @@ int process(context_t *context)
         log_debug("Found new directory: %s", dp->d_name);
         
         band_info_t band_info;
-        int source_type;
-        if (check_music_folder(path, dp->d_name, &band_info, exts, config->num_mappings, &source_type) != 0) {
-            continue;  // Not a recognized music folder
+        if (check_for_bandcamp_folder(path, dp->d_name, &band_info) != 0) {
+            continue;  // Not a bandcamp folder
         }
         
-        const char *source_name = (source_type == SOURCE_BANDCAMP) ? "Bandcamp" : 
-                                  (source_type == SOURCE_QOBUZ) ? "Qobuz" : "Unknown";
-        log_info("Found %s folder: %s (%s)", source_name, dp->d_name, band_info.file_type);
+        log_info("Found a folder that appears to be from bandcamp (%s)!", dp->d_name);
         
-        // Find target directory using detected file type
-        const char *target_base = get_target_dir(config, band_info.file_type);
+        // Get file extension string for lookup
+        const char *ext_str = (band_info.file_type == flac) ? "flac" : 
+                              (band_info.file_type == aac) ? "aac" : "unknown";
+        
+        // Find target directory
+        const char *target_base = get_target_dir(config, ext_str);
         if (!target_base) {
-            log_error("No target directory configured for %s files", band_info.file_type);
+            log_error("No target directory configured for %s files", ext_str);
             continue;
         }
         
@@ -230,7 +219,7 @@ int process(context_t *context)
         }
         
         // Add to Apple Music if enabled and format is supported
-        if (config->apple_music && is_apple_music_format(band_info.file_type)) {
+        if (config->apple_music && is_apple_music_format(ext_str)) {
             if (config->dry_run) {
                 log_info("[DRY RUN] Would add %s to Apple Music", dst_path);
             } else {
@@ -240,7 +229,6 @@ int process(context_t *context)
         }
     }
     
-    free(exts);
     (void)closedir(dirp);
     context->last_run.tv_sec = start_of_run.tv_sec;
     context->last_run.tv_usec = start_of_run.tv_usec;
