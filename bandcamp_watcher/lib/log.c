@@ -22,6 +22,8 @@
 
 #include "log.h"
 
+#include <string.h>
+
 #define MAX_CALLBACKS 32
 //#define LOG_USE_COLOR 1
 
@@ -154,4 +156,18 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
     }
 
     unlock();
+}
+
+log_level_t parse_log_level(const char *str) {
+    if (!str) return LOG_INFO;
+    
+    if (strcasecmp(str, "debug") == 0) return LOG_DEBUG;
+    if (strcasecmp(str, "trace") == 0) return LOG_TRACE;
+    if (strcasecmp(str, "info") == 0) return LOG_INFO;
+    if (strcasecmp(str, "warn") == 0) return LOG_WARN;
+    if (strcasecmp(str, "warning") == 0) return LOG_WARN;
+    if (strcasecmp(str, "error") == 0) return LOG_ERROR;
+    if (strcasecmp(str, "fatal") == 0) return LOG_FATAL;
+    
+    return LOG_INFO;  // Default
 }

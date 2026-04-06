@@ -48,3 +48,43 @@ int is_matching_extension(const char *filename, const char *ext)
     
     return strcasecmp(p, ext);
 }
+
+/* Trim whitespace from string (modifies in place, returns pointer to trimmed string) */
+char *trim(char *str)
+{
+    if (!str) return NULL;
+    
+    // Trim leading
+    while (isspace((unsigned char)*str)) str++;
+    
+    if (*str == '\0') return str;
+    
+    // Trim trailing
+    char *end = str + strlen(str) - 1;
+    while (end > str && isspace((unsigned char)*end)) end--;
+    end[1] = '\0';
+    
+    return str;
+}
+
+/* Parse boolean string (case-insensitive) */
+int parse_bool(const char *str)
+{
+    if (!str) return 0;
+    
+    if (strcasecmp(str, "true") == 0 || 
+        strcasecmp(str, "yes") == 0 ||
+        strcasecmp(str, "1") == 0 ||
+        strcasecmp(str, "on") == 0) {
+        return 1;
+    }
+    
+    if (strcasecmp(str, "false") == 0 || 
+        strcasecmp(str, "no") == 0 ||
+        strcasecmp(str, "0") == 0 ||
+        strcasecmp(str, "off") == 0) {
+        return 0;
+    }
+    
+    return 0;  // Default to false for unrecognized
+}

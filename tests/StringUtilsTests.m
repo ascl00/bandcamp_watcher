@@ -120,4 +120,94 @@
     XCTAssertNotEqual(is_matching_extension("song.flacs", ".flac"), 0);
 }
 
+#pragma mark - trim tests
+
+- (void)testTrimLeadingWhitespace {
+    char str[] = "   hello";
+    XCTAssertEqual(strcmp(trim(str), "hello"), 0);
+}
+
+- (void)testTrimTrailingWhitespace {
+    char str[] = "hello   ";
+    XCTAssertEqual(strcmp(trim(str), "hello"), 0);
+}
+
+- (void)testTrimBothEnds {
+    char str[] = "   hello world   ";
+    XCTAssertEqual(strcmp(trim(str), "hello world"), 0);
+}
+
+- (void)testTrimTabsAndSpaces {
+    char str[] = "\t\t  hello  \t";
+    XCTAssertEqual(strcmp(trim(str), "hello"), 0);
+}
+
+- (void)testTrimEmptyString {
+    char str[] = "";
+    XCTAssertEqual(strcmp(trim(str), ""), 0);
+}
+
+- (void)testTrimOnlyWhitespace {
+    char str[] = "     ";
+    XCTAssertEqual(strcmp(trim(str), ""), 0);
+}
+
+- (void)testTrimNoWhitespace {
+    char str[] = "hello";
+    XCTAssertEqual(strcmp(trim(str), "hello"), 0);
+}
+
+- (void)testTrimSingleChar {
+    char str[] = "a";
+    XCTAssertEqual(strcmp(trim(str), "a"), 0);
+}
+
+- (void)testTrimSingleSpace {
+    char str[] = " ";
+    XCTAssertEqual(strcmp(trim(str), ""), 0);
+}
+
+- (void)testTrimNullReturnsNull {
+    XCTAssertTrue(trim(NULL) == NULL);
+}
+
+- (void)testTrimInternalWhitespacePreserved {
+    char str[] = "  hello   world  ";
+    XCTAssertEqual(strcmp(trim(str), "hello   world"), 0);
+}
+
+#pragma mark - parse_bool tests
+
+- (void)testParseBoolTrueValues {
+    XCTAssertEqual(parse_bool("true"), 1);
+    XCTAssertEqual(parse_bool("TRUE"), 1);
+    XCTAssertEqual(parse_bool("True"), 1);
+    XCTAssertEqual(parse_bool("yes"), 1);
+    XCTAssertEqual(parse_bool("YES"), 1);
+    XCTAssertEqual(parse_bool("1"), 1);
+    XCTAssertEqual(parse_bool("on"), 1);
+    XCTAssertEqual(parse_bool("ON"), 1);
+}
+
+- (void)testParseBoolFalseValues {
+    XCTAssertEqual(parse_bool("false"), 0);
+    XCTAssertEqual(parse_bool("FALSE"), 0);
+    XCTAssertEqual(parse_bool("False"), 0);
+    XCTAssertEqual(parse_bool("no"), 0);
+    XCTAssertEqual(parse_bool("NO"), 0);
+    XCTAssertEqual(parse_bool("0"), 0);
+    XCTAssertEqual(parse_bool("off"), 0);
+    XCTAssertEqual(parse_bool("OFF"), 0);
+}
+
+- (void)testParseBoolNullReturnsFalse {
+    XCTAssertEqual(parse_bool(NULL), 0);
+}
+
+- (void)testParseBoolUnrecognizedReturnsFalse {
+    XCTAssertEqual(parse_bool("maybe"), 0);
+    XCTAssertEqual(parse_bool(""), 0);
+    XCTAssertEqual(parse_bool("foo"), 0);
+}
+
 @end

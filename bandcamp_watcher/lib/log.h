@@ -36,6 +36,8 @@ enum {
     LOG_FATAL = 128,
 };
 
+typedef int log_level_t;
+
 typedef struct {
     va_list ap;
     const char *fmt;
@@ -87,6 +89,12 @@ void log_set_level(int level);
 void log_set_quiet(bool enable);
 int log_add_callback(log_LogFn fn, void *udata, int level);
 int log_add_fp(FILE *fp, int level);
+
+/* Parse log level string (case-insensitive)
+ * Recognizes: "debug", "trace", "info", "warn"/"warning", "error", "fatal"
+ * Returns LOG_INFO for unrecognized strings
+ */
+log_level_t parse_log_level(const char *str);
 
 void log_log(int level, const char *file, int line, const char *fmt, ...)
     RXI_LOGC_PRINTF_ATTRIB(4, 5);
