@@ -57,7 +57,7 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-            argument = "/Users/USERNAME/Downloads"
+             argument = "/Users/USERNAME/Downloads"
             isEnabled = "YES">
          </CommandLineArgument>
       </CommandLineArguments>

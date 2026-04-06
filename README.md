@@ -197,6 +197,59 @@ xcodebuild test -scheme bandcamp_watcherTests
 - **LogTests** (9 tests): Log level parsing
 - **ConfigTests** (22 tests): Configuration loading, validation, XDG paths
 
+## Running as a Service (launchd)
+
+To run bandcamp_watcher automatically in the background on macOS, use the included `bandcamp_watcher.plist` file with launchd.
+
+### Setup
+
+1. **Build the binary** and place it in a permanent location (e.g., `~/bin/` or `/usr/local/bin/`):
+   ```bash
+   mkdir -p ~/bin
+   cp /path/to/built/bandcamp_watcher ~/bin/
+   ```
+
+2. **Copy the plist file** to your LaunchAgents directory:
+   ```bash
+   cp bandcamp_watcher/bandcamp_watcher.plist ~/Library/LaunchAgents/
+   ```
+
+3. **Edit the plist file** to match your system:
+   - Replace `USERNAME` with your macOS username throughout the file
+   - Update the path in `ProgramArguments` if you placed the binary elsewhere
+   - Optional: Add command-line arguments by adding more `<string>` elements to `ProgramArguments`
+
+4. **Load the service**:
+   ```bash
+   launchctl load ~/Library/LaunchAgents/bandcamp_watcher.plist
+   ```
+
+5. **Start the service immediately** (or wait for next login):
+   ```bash
+   launchctl start launched.bandcamp_watcher
+   ```
+
+### Managing the Service
+
+| Command | Description |
+|---------|-------------|
+| `launchctl start launched.bandcamp_watcher` | Start the service |
+| `launchctl stop launched.bandcamp_watcher` | Stop the service |
+| `launchctl unload ~/Library/LaunchAgents/bandcamp_watcher.plist` | Unload (disable) the service |
+| `launchctl list | grep bandcamp_watcher` | Check if service is loaded |
+
+### Viewing Logs
+
+Logs are written to the system log, viewable via Console.app or:
+```bash
+log show --predicate 'process == "bandcamp_watcher"' --last 1h
+```
+
+Or for real-time logs:
+```bash
+log stream --predicate 'process == "bandcamp_watcher"'
+```
+
 ## Troubleshooting
 
 ### "Watch directory does not exist"
