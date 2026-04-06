@@ -1,0 +1,29 @@
+# bandcamp_watcher configuration file
+# Place this file at: ~/.config/bandcamp_watcher/config
+# Or specify a different location with: bandcamp_watcher -f /path/to/config
+
+# Global settings
+watch_dir = ~/Downloads
+log_level = info
+apple_music = true
+
+# Extension mappings [extensions]
+# Format: extension = /path/to/destination
+# Supported extensions: flac, aac, m4a, mp3, alac
+# Note: FLAC files are NOT added to Apple Music (not supported by Apple)
+# All other formats are added to Apple Music if apple_music is true
+
+[extensions]
+flac = /Volumes/Multimedia/Music/FLAC
+aac = /Volumes/Multimedia/Music/aac
+m4a = /Volumes/Multimedia/Music/aac
+# mp3 = /path/to/mp3/library
+# alac = /path/to/alac/library
+
+# Example using home directory:
+# flac = ~/Music/FLAC
+# aac = ~/Music/AAC
+
+# Example using external drive:
+# flac = /Volumes/Music/FLAC
+# aac = /Volumes/Music/AAC
