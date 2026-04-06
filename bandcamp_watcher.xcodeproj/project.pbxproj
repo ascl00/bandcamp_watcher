@@ -64,8 +64,6 @@
 				lib/qobuz.h,
 				lib/utils.c,
 				lib/utils.h,
-				lib/validate.c,
-				lib/validate.h,
 			);
 			publicHeaders = (
 				lib/bandcamp.h,
@@ -74,7 +72,6 @@
 				lib/log.h,
 				lib/qobuz.h,
 				lib/utils.h,
-				lib/validate.h,
 			);
 			target = FD35FB062F831D8800824B8C /* watcherlib */;
 		};
@@ -88,7 +85,6 @@
 				lib/log.c,
 				lib/qobuz.c,
 				lib/utils.c,
-				lib/validate.c,
 			);
 			target = FD3E17152E02C9F600309224 /* bandcamp_watcher */;
 		};

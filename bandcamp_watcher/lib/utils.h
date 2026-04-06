@@ -35,7 +35,4 @@ size_t files_with_extension(const char *path, const char *ext);
  */
 size_t files_with_extensions(const char *path, const char **exts, int num_exts);
 
-/* Count total files in directory (all types, excluding . and ..) */
-size_t total_files_in_dir(const char *path);
-
 #endif /* UTILS_H */

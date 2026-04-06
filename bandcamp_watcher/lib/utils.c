@@ -148,31 +148,3 @@ size_t files_with_extensions(const char *path, const char **exts, int num_exts)
     
     return count;
 }
-
-/* Count total files in directory (all types, excluding . and ..) */
-size_t total_files_in_dir(const char *path)
-{
-    DIR *d = opendir(path);
-    size_t count = 0;
-    
-    if(!d)
-    {
-        return 0;
-    }
-    struct dirent *de = NULL;
-    
-    while ( (de = readdir(d)) != NULL)
-    {
-        if (de->d_type == DT_REG)
-        {
-            if (strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
-            {
-                count++;
-            }
-        }
-    }
-    
-    (void)closedir(d);
-    
-    return count;
-}

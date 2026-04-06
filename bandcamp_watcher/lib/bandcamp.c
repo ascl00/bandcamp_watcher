@@ -111,7 +111,7 @@ int check_bandcamp_files(const char *path, band_info_t *band_info,
         }
     }
     
-    rewinddir(d);
+    (void)closedir(d);
     
     // Check for mixed types
     int types_found = 0;
@@ -124,13 +124,11 @@ int check_bandcamp_files(const char *path, band_info_t *band_info,
     
     if (types_found == 0) {
         log_debug("No audio files found in %s", path);
-        (void)closedir(d);
         return -1;
     }
     
     if (types_found > 1) {
         log_error("Found mixed audio types in %s", path);
-        (void)closedir(d);
         return -1;
     }
     
@@ -142,8 +140,6 @@ int check_bandcamp_files(const char *path, band_info_t *band_info,
                                                     band_info->album, 
                                                     band_info->file_type);
     
-    (void)closedir(d);
-    
     if (song_files == 0) {
         log_info("Found audio files but not in Bandcamp naming format. Skipping (%s)", path);
         return -1;
@@ -152,17 +148,4 @@ int check_bandcamp_files(const char *path, band_info_t *band_info,
     log_trace("Found %zu Bandcamp-style song files (%s)", song_files, band_info->file_type);
     
     return 0;
-}
-
-const char *band_info_string(band_info_t *bi)
-{
-    static char ret[NAME_MAX+1];
-    ret[0]='\0';
-    strcat(ret, bi->name);
-    strcat(ret, " -> ");
-    strcat(ret, bi->album);
-    strcat(ret, " (");
-    strcat(ret, bi->file_type);
-    strcat(ret, ")");
-    return ret;
 }

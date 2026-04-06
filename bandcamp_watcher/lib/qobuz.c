@@ -16,91 +16,109 @@
 #include <stdlib.h>
 #include <limits.h>
 
-/* Count files with sequential numbering (01, 02, 03...) matching any extension
- * This is Qobuz-specific validation - Qobuz files are named "NN Song Name.ext"
- * Returns count of valid sequential files
- * max_track: filled with highest track number found
- * Returns 0 if no sequential files found or sequence is broken
- */
-static size_t files_with_sequential_numbers(const char *path, const char **exts, 
-                                              int num_exts, int *max_track)
+int check_qobuz_files(const char *path, band_info_t *band_info,
+                      const char **exts, int num_exts)
 {
     DIR *d = opendir(path);
     size_t count = 0;
+    size_t non_audio = 0;
     int highest = 0;
     int *found_tracks = NULL;
-    
+    int *type_counts = NULL;
+    int types_found = 0;
+    int first_type = -1;
+
     if(!d)
     {
-        if (max_track) *max_track = 0;
-        return 0;
+        log_debug("Cannot open directory %s", path);
+        return -1;
     }
-    
-    // First pass: find highest track number and count matching files
+
+    // Allocate array to track counts per type
+    type_counts = calloc(num_exts, sizeof(int));
+    if (!type_counts) {
+        (void)closedir(d);
+        log_error("Memory allocation failed for type_counts");
+        return -1;
+    }
+
+    // First pass: find highest track number, count matching files per type, and count non-audio
     struct dirent *de = NULL;
     while ((de = readdir(d)) != NULL)
     {
         if (de->d_type != DT_REG) continue;
-        
-        // Check if file matches any of our extensions
-        int ext_matched = 0;
+
+        // Check which extension matches (if any)
+        int ext_matched = -1;
         for (int i = 0; i < num_exts; i++) {
             char ext_pattern[32];
             snprintf(ext_pattern, sizeof(ext_pattern), ".%s", exts[i]);
             if (is_matching_extension(de->d_name, ext_pattern) == 0)
             {
-                ext_matched = 1;
+                ext_matched = i;
                 break;
             }
         }
-        if (!ext_matched) continue;
-        
+
+        if (ext_matched < 0) {
+            // This is a non-audio file
+            non_audio++;
+            continue;
+        }
+
         // Check for leading number
         char *endptr;
         int track_num = (int)strtol(de->d_name, &endptr, 10);
-        
+
         // Valid track files should:
         // - Start with a number > 0
         // - Have a space or other non-digit after the number
         if (track_num > 0 && endptr != de->d_name && !isdigit((unsigned char)*endptr))
         {
+            type_counts[ext_matched]++;
+            if (type_counts[ext_matched] == 1) {
+                types_found++;
+                if (first_type < 0) first_type = ext_matched;
+            }
             count++;
             if (track_num > highest) highest = track_num;
         }
     }
-    
+
     rewinddir(d);
-    
-    // Allocate array to track which numbers we've seen
-    if (highest > 0) {
-        found_tracks = calloc(highest + 1, sizeof(int));
-        if (!found_tracks) {
-            (void)closedir(d);
-            if (max_track) *max_track = 0;
-            return 0;
-        }
+
+    // If no valid track files found in first pass, skip second pass
+    if (first_type < 0 || highest == 0) {
+        (void)closedir(d);
+        free(type_counts);
+        log_debug("No sequential track files found in %s", path);
+        return -1;
     }
-    
-    // Second pass: mark which tracks we found
+
+    // Allocate array to track which numbers we've seen
+    found_tracks = calloc(highest + 1, sizeof(int));
+    if (!found_tracks) {
+        (void)closedir(d);
+        free(type_counts);
+        log_error("Memory allocation failed for found_tracks");
+        return -1;
+    }
+
+    // Build extension pattern for the detected type only
+    char ext_pattern[32];
+    snprintf(ext_pattern, sizeof(ext_pattern), ".%s", exts[first_type]);
+
+    // Second pass: mark which tracks we found (only check the detected file type)
     while ((de = readdir(d)) != NULL)
     {
         if (de->d_type != DT_REG) continue;
-        
-        int ext_matched = 0;
-        for (int i = 0; i < num_exts; i++) {
-            char ext_pattern[32];
-            snprintf(ext_pattern, sizeof(ext_pattern), ".%s", exts[i]);
-            if (is_matching_extension(de->d_name, ext_pattern) == 0)
-            {
-                ext_matched = 1;
-                break;
-            }
-        }
-        if (!ext_matched) continue;
-        
+
+        // Only check the detected file type, not all extensions
+        if (is_matching_extension(de->d_name, ext_pattern) != 0) continue;
+
         char *endptr;
         int track_num = (int)strtol(de->d_name, &endptr, 10);
-        
+
         if (track_num > 0 && endptr != de->d_name && !isdigit((unsigned char)*endptr))
         {
             if (track_num <= highest) {
@@ -108,9 +126,9 @@ static size_t files_with_sequential_numbers(const char *path, const char **exts,
             }
         }
     }
-    
+
     (void)closedir(d);
-    
+
     // Check for gaps in sequence (1 to highest should all be present)
     int valid = 1;
     for (int i = 1; i <= highest; i++) {
@@ -119,115 +137,43 @@ static size_t files_with_sequential_numbers(const char *path, const char **exts,
             break;
         }
     }
-    
-    free(found_tracks);
-    
-    if (max_track) *max_track = highest;
-    
-    // Return count only if sequence is valid (no gaps)
-    return valid ? count : 0;
-}
 
-int check_qobuz_files(const char *path, band_info_t *band_info, 
-                      const char **exts, int num_exts)
-{
-    int max_track = 0;
-    
-    // Check for sequential numbering
-    size_t sequential_files = files_with_sequential_numbers(path, exts, num_exts, &max_track);
-    
-    if (sequential_files == 0) {
+    free(found_tracks);
+    free(type_counts);
+
+    // Return -1 if sequence has gaps
+    if (!valid) {
         log_debug("No sequential track files found in %s", path);
         return -1;
     }
-    
-    // Validate track count (3-30)
-    if (sequential_files < 3 || sequential_files > 30) {
-        log_debug("Track count %zu is outside valid range (3-30) in %s", sequential_files, path);
+
+    // Check for mixed audio types (detected in the same pass)
+    if (types_found > 1) {
+        log_error("Mixed audio types found in %s (%d different types)", path, types_found);
         return -1;
     }
-    
-    // Get total file count
-    size_t total_files = total_files_in_dir(path);
-    
+
+    // Validate track count (3-30)
+    if (count < 3 || count > 30) {
+        log_debug("Track count %zu is outside valid range (3-30) in %s", count, path);
+        return -1;
+    }
+
     // Check non-audio file count (must be <= 6)
-    size_t non_audio = total_files - sequential_files;
     if (non_audio > 6) {
         log_debug("Too many non-audio files (%zu) in %s", non_audio, path);
         return -1;
     }
-    
-    // Determine file type from the files we found
-    // Check first file to get extension
-    DIR *d = opendir(path);
-    if (!d) {
-        log_error("Failed to open dir %s", path);
-        return -1;
-    }
-    
-    int found_type = 0;
-    struct dirent *de = NULL;
-    
-    while ((de = readdir(d)) != NULL && !found_type) {
-        if (de->d_type != DT_REG) continue;
-        
-        // Check if this file has a track number prefix
-        char *endptr;
-        int track_num = (int)strtol(de->d_name, &endptr, 10);
-        
-        if (track_num > 0 && endptr != de->d_name && !isdigit((unsigned char)*endptr)) {
-            // This is a track file, check which extension matches
-            for (int i = 0; i < num_exts; i++) {
-                char ext_pattern[32];
-                snprintf(ext_pattern, sizeof(ext_pattern), ".%s", exts[i]);
-                if (is_matching_extension(de->d_name, ext_pattern) == 0) {
-                    strcpy(band_info->file_type, exts[i]);
-                    found_type = 1;
-                    break;
-                }
-            }
-        }
-    }
-    
-    (void)closedir(d);
-    
-    if (!found_type) {
+
+    // Set the detected file type
+    if (first_type >= 0 && first_type < num_exts) {
+        strcpy(band_info->file_type, exts[first_type]);
+    } else {
         log_error("Could not determine file type in %s", path);
         return -1;
     }
-    
-    // Check for mixed audio types
-    for (int i = 0; i < num_exts; i++) {
-        // Skip the type we already identified
-        if (strcmp(exts[i], band_info->file_type) == 0) continue;
-        
-        char ext_pattern[32];
-        snprintf(ext_pattern, sizeof(ext_pattern), ".%s", exts[i]);
-        
-        DIR *check_dir = opendir(path);
-        if (!check_dir) continue;
-        
-        struct dirent *check_de = NULL;
-        while ((check_de = readdir(check_dir)) != NULL) {
-            if (check_de->d_type != DT_REG) continue;
-            
-            // Check if this file has a track number prefix
-            char *endptr;
-            int track_num = (int)strtol(check_de->d_name, &endptr, 10);
-            
-            if (track_num > 0 && endptr != check_de->d_name && !isdigit((unsigned char)*endptr)) {
-                if (is_matching_extension(check_de->d_name, ext_pattern) == 0) {
-                    log_error("Mixed audio types found in %s (found %s and %s)", 
-                              path, band_info->file_type, exts[i]);
-                    (void)closedir(check_dir);
-                    return -1;
-                }
-            }
-        }
-        (void)closedir(check_dir);
-    }
-    
-    log_trace("Found %zu Qobuz-style track files (%s) in %s", sequential_files, band_info->file_type, path);
-    
+
+    log_trace("Found %zu Qobuz-style track files (%s) in %s", count, band_info->file_type, path);
+
     return 0;
 }

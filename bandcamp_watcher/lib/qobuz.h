@@ -11,7 +11,7 @@
 #include <stddef.h>
 #include <limits.h>
 #include <sys/types.h>
-#include "bandcamp.h"
+#include "folder.h"
 
 /* Check if files in directory match Qobuz naming pattern
  * Validates:

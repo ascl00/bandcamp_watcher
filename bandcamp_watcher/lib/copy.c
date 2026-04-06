@@ -31,23 +31,37 @@ int dir_exists(const char* path)
     return 0;
 }
 
-void filecopy(FILE *src, FILE *dst)
+int filecopy(FILE *src, FILE *dst)
 {
-   byte_t buf[BUFSIZE];
-   size_t numread, numwrite;
-
-   while (!feof(src)) {
-       numread = fread(buf, sizeof(byte_t), BUFSIZE, src);
-
-       if (numread > 0) {
-           numwrite = fwrite(buf, sizeof(byte_t), numread, dst);
-
-           if (numwrite != numread) {
-               fputs("mismatch!\n", stderr);
-               return;
-           }
-       }
-   }
+    byte_t buf[BUFSIZE];
+    size_t numread, numwrite;
+    while ((numread = fread(buf, 1, BUFSIZE, src)) > 0)
+    {
+        if(ferror(src))
+        {
+            break;
+        }
+        numwrite = fwrite(buf, 1, numread, dst);
+        if (numwrite != numread)
+        {
+            fputs("Write error or mismatch!\n", stderr);
+            // Only clear error if there was one
+            if (ferror(dst))
+                clearerr(dst);
+            return 1;
+        }
+        if(feof(src))
+            break;
+    }
+    // After loop ends, check why
+    if (ferror(src))
+    {
+        fputs("Read error!\n", stderr);
+        clearerr(src);
+        return 2;
+    }
+    // If feof(src), it's normal end of file, no action needed
+    return 0;
 }
 
 int copy(const char* src_file_name, const char* dst_file_name)
@@ -56,23 +70,29 @@ int copy(const char* src_file_name, const char* dst_file_name)
     int err = 0;
     
     s = fopen(src_file_name, "rb");
-    if (s == NULL) {
+    if (s == NULL)
+    {
         perror(src_file_name);
         return errno;
     }
 
     d = fopen(dst_file_name, "wb");
-    if (d == NULL) {
+    if (d == NULL)
+    {
         perror(dst_file_name);
         err = errno;
         fclose(s);
         return err;
     }
 
-    filecopy(s, d);
+    int copy_err = filecopy(s, d);
     fclose(s);
     fclose(d);
-    
+    if (copy_err != 0)
+    {
+        fprintf(stderr, "Error copying file %s to %s (code %d)\n", src_file_name, dst_file_name, copy_err);
+        return copy_err;
+    }
     return 0;
 }
 
@@ -116,3 +136,4 @@ int clone(const char *src_path, const char *dst_path)
         
     return 0;
 }
+

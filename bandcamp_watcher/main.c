@@ -22,7 +22,7 @@
 #include "copy.h"
 #include "utils.h"
 #include "bandcamp.h"
-#include "validate.h"
+#include "folder.h"
 #include "config.h"
 #include "args.h"
 
@@ -43,7 +43,7 @@ char *flagstring(int flags)
     if (flags & NOTE_ATTRIB) {strcat(ret,or);strcat(ret,"NOTE_ATTRIB");or="|";}
     if (flags & NOTE_LINK) {strcat(ret,or);strcat(ret,"NOTE_LINK");or="|";}
     if (flags & NOTE_RENAME) {strcat(ret,or);strcat(ret,"NOTE_RENAME");or="|";}
-    if (flags & NOTE_REVOKE) {strcat(ret,or);strcat(ret,"NOTE_REVOKE");or="|";}
+    if (flags & NOTE_REVOKE) {strcat(ret,or);strcat(ret,"NOTE_REVOKE");}
  
     return ret;
 }

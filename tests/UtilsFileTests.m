@@ -88,45 +88,4 @@
     XCTAssertEqual(count, 0);
 }
 
-#pragma mark - total_files_in_dir tests
-
-- (void)testTotalFilesInDir {
-    // Create various files
-    char path[512];
-    snprintf(path, sizeof(path), "%s/file1.txt", self->testDir);
-    int fd = open(path, O_CREAT|O_WRONLY, 0644);
-    close(fd);
-    
-    snprintf(path, sizeof(path), "%s/file2.flac", self->testDir);
-    fd = open(path, O_CREAT|O_WRONLY, 0644);
-    close(fd);
-    
-    snprintf(path, sizeof(path), "%s/file3.jpg", self->testDir);
-    fd = open(path, O_CREAT|O_WRONLY, 0644);
-    close(fd);
-    
-    size_t count = total_files_in_dir(self->testDir);
-    XCTAssertEqual(count, 3);
-}
-
-- (void)testTotalFilesIgnoresDirectories {
-    // Create a file
-    char path[512];
-    snprintf(path, sizeof(path), "%s/file.txt", self->testDir);
-    int fd = open(path, O_CREAT|O_WRONLY, 0644);
-    close(fd);
-    
-    // Create a subdirectory
-    snprintf(path, sizeof(path), "%s/subdir", self->testDir);
-    mkdir(path, 0755);
-    
-    size_t count = total_files_in_dir(self->testDir);
-    XCTAssertEqual(count, 1);  // Should not count subdir
-}
-
-- (void)testTotalFilesEmptyDir {
-    size_t count = total_files_in_dir(self->testDir);
-    XCTAssertEqual(count, 0);
-}
-
 @end

@@ -30,7 +30,8 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
       <TestPlans>
          <TestPlanReference
-            reference = "container:tests/TestPlan.xctestplan">
+            reference = "container:tests/TestPlan.xctestplan"
+            default = "YES">
          </TestPlanReference>
       </TestPlans>
    </TestAction>
@@ -57,8 +58,8 @@
       </BuildableProductRunnable>
       <CommandLineArguments>
          <CommandLineArgument
-             argument = "/Users/USERNAME/Downloads"
-            isEnabled = "YES">
+            argument = "/Users/USERNAME/Downloads"
+            isEnabled = "NO">
          </CommandLineArgument>
       </CommandLineArguments>
    </LaunchAction>

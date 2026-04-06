@@ -2,22 +2,27 @@
 //  folder.c
 //  bandcamp_watcher
 //
-//  Shared folder name parsing utilities for music source detection
+//  Shared folder name parsing and validation for music source detection
 //
 
 #include "folder.h"
+#include "bandcamp.h"
+#include "qobuz.h"
+#include "utils.h"
 #include "log.h"
+
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 
-int parse_folder_name(const char *folder, char *name, size_t name_len, 
+int parse_folder_name(const char *folder, char *name, size_t name_len,
                       char *album, size_t album_len)
 {
     if (!folder || !name || !album) return -1;
-    
+
     // We want to see if this looks like a folder downloaded from a music service
     // Typical structure is <bandname> - <album name> possibly with a "-<number>" appended
-    
+
     // First lets just check if we have at least one dash
     const char *p = folder;
     while(*p)
@@ -26,7 +31,7 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
             break;
         p++;
     }
-    
+
     if(*p != '-')
     {
         log_debug("Failed to find a dash in %s", folder);
@@ -38,10 +43,10 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
         log_debug("Dash at start of %s", folder);
         return -1;
     }
-    
+
     // lets capture the end of the first part of the string for later use
     const char *band_name_end = p-1;
-    
+
     p++;
     if(!*p)
     {
@@ -54,14 +59,14 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
     {
         p++;
     }
-    
+
     if(!*p)
     {
         // the only dash is the one at the end, this isn't helping us
         log_debug("No dash in the middle in %s", folder);
         return -1;
     }
-    
+
     if(*p != ' ')
     {
         log_debug("Expected space after dash in %s", folder);
@@ -79,16 +84,16 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
     if (band_len >= name_len) band_len = name_len - 1;
     strncpy(name, folder, band_len);
     name[band_len] = '\0';
-    
+
     // Trim trailing space from band name
     while (band_len > 0 && isspace((unsigned char)name[band_len-1])) {
         name[--band_len] = '\0';
     }
-    
+
     // Extract album name
     strncpy(album, album_name_start, album_len - 1);
     album[album_len - 1] = '\0';
-    
+
     // We may need to strip off some garbage at the end tho
     char *dash = strrchr(album, '-');
     if(dash)
@@ -98,7 +103,7 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
         {
             p++;
         }
-        
+
         if(*p == '\0')
         {
             // We got to the end of the string and only found numbers, lets assume it is a folder-2 arrangement
@@ -106,7 +111,7 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
             *dash = '\0';
         }
     }
-    
+
     // We might have '(pre-order)' at the end of the album name, we should remove that too.
     char *parens = strrchr(album, '(');
     if(parens != NULL)
@@ -117,12 +122,67 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
             *parens='\0';
         }
     }
-    
+
     // Trim trailing whitespace from album
     size_t album_len_actual = strlen(album);
     while (album_len_actual > 0 && isspace((unsigned char)album[album_len_actual-1])) {
         album[--album_len_actual] = '\0';
     }
-    
+
     return 0;
+}
+
+const char *band_info_string(band_info_t *bi)
+{
+    static char ret[NAME_MAX+1];
+    ret[0]='\0';
+    strcat(ret, bi->name);
+    strcat(ret, " -> ");
+    strcat(ret, bi->album);
+    strcat(ret, " (");
+    strcat(ret, bi->file_type);
+    strcat(ret, ")");
+    return ret;
+}
+
+int check_music_folder(const char *fullpath, const char *folder,
+                       band_info_t *band_info, const char **exts, int num_exts,
+                       int *source_type)
+{
+    if (!fullpath || !folder || !band_info || !exts || !source_type) {
+        log_error("Invalid parameters to check_music_folder");
+        return -1;
+    }
+
+    // Initialize source_type to unknown
+    *source_type = SOURCE_UNKNOWN;
+
+    // Step 1: Parse folder name using shared logic
+    if (parse_folder_name(folder, band_info->name, sizeof(band_info->name),
+                          band_info->album, sizeof(band_info->album)) != 0) {
+        log_debug("Folder '%s' doesn't match Artist - Album pattern", folder);
+        return -1;
+    }
+
+    log_debug("Parsed folder: Band='%s', Album='%s'", band_info->name, band_info->album);
+
+    // Step 2: First try Bandcamp-specific validation
+    // Bandcamp checks for files named "Band - Album - NN Song Name.ext"
+    if (check_bandcamp_files(fullpath, band_info, exts, num_exts) == 0) {
+        *source_type = SOURCE_BANDCAMP;
+        log_info("Detected Bandcamp format: %s", band_info_string(band_info));
+        return 0;
+    }
+
+    // Step 3: If Bandcamp failed, try Qobuz validation
+    // Qobuz checks for sequentially numbered files (01, 02, 03...)
+    if (check_qobuz_files(fullpath, band_info, exts, num_exts) == 0) {
+        *source_type = SOURCE_QOBUZ;
+        log_info("Detected Qobuz format: %s", band_info_string(band_info));
+        return 0;
+    }
+
+    // Neither format matched
+    log_debug("Folder '%s' doesn't match Bandcamp or Qobuz patterns", folder);
+    return -1;
 }

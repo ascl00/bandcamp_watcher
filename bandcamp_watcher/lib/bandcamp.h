@@ -11,12 +11,7 @@
 #include <stddef.h>
 #include <limits.h>
 #include <sys/types.h>
-
-typedef struct {
-    char name[NAME_MAX+1];
-    char album[NAME_MAX+1];
-    char file_type[16];  // "flac", "aac", "m4a", etc.
-} band_info_t;
+#include "folder.h"
 
 /* Count files matching Bandcamp song naming pattern
  * Files should be named: "Band - Album - NN Song Name.ext"
@@ -41,8 +36,5 @@ size_t files_that_look_like_songs(const char *path, const char *band_name,
  */
 int check_bandcamp_files(const char *path, band_info_t *band_info, 
                          const char **exts, int num_exts);
-
-/* Format band_info_t as readable string */
-const char *band_info_string(band_info_t *bi);
 
 #endif /* BANDCAMP_H */

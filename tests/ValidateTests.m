@@ -7,7 +7,7 @@
 
 #import <XCTest/XCTest.h>
 
-#include "validate.h"
+#include "folder.h"
 #include "bandcamp.h"
 
 @interface ValidateTests : XCTestCase {
