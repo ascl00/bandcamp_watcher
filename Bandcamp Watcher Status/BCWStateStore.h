@@ -6,24 +6,25 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "state_db.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSInteger, BCWEventType) {
     BCWEventTypeUnknown = 0,
-    BCWEventTypeWatcherStarted = 1,
-    BCWEventTypeWatcherStopped = 2,
-    BCWEventTypeWatcherError = 3,
-    BCWEventTypeAlbumCopied = 4,
-    BCWEventTypeAlbumSkipped = 5,
-    BCWEventTypeCopyFailed = 6,
-    BCWEventTypeOneshotCompleted = 7
+    BCWEventTypeWatcherStarted = EVENT_WATCHER_STARTED,
+    BCWEventTypeWatcherStopped = EVENT_WATCHER_STOPPED,
+    BCWEventTypeWatcherError = EVENT_WATCHER_ERROR,
+    BCWEventTypeAlbumCopied = EVENT_ALBUM_COPIED,
+    BCWEventTypeAlbumSkipped = EVENT_ALBUM_SKIPPED,
+    BCWEventTypeCopyFailed = EVENT_COPY_FAILED,
+    BCWEventTypeOneshotCompleted = EVENT_ONESHOT_COMPLETED
 };
 
 typedef NS_ENUM(NSInteger, BCWSourceType) {
     BCWSourceTypeUnknown = 0,
-    BCWSourceTypeBandcamp = 1,
-    BCWSourceTypeQobuz = 2
+    BCWSourceTypeBandcamp = SOURCE_TYPE_BANDCAMP,
+    BCWSourceTypeQobuz = SOURCE_TYPE_QOBUZ
 };
 
 @interface BCWAlbumEvent : NSObject
