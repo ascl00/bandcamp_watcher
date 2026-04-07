@@ -64,6 +64,9 @@ typedef NS_ENUM(NSInteger, BCWSourceType) {
 // Recent album events (album_copied type)
 - (NSArray<BCWAlbumEvent *> *)fetchRecentAlbums:(NSUInteger)limit;
 
+// Recent errors (copy_failed type)
+- (NSArray<BCWAlbumEvent *> *)fetchRecentErrors:(NSUInteger)limit;
+
 // All event types (for debugging)
 - (NSArray<BCWAlbumEvent *> *)fetchRecentEvents:(NSUInteger)limit;
 

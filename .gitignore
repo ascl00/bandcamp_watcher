@@ -1,0 +1,49 @@
+# Xcode - Build products
+build/
+DerivedData/
+*.ipa
+*.app
+*.dSYM.zip
+*.dSYM
+
+# Xcode - User settings
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+
+# Xcode - Swift Package Manager
+.build/
+Packages/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# vim/nano swap files
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+
+# State database (local only, per-user)
+# Note: The state DB path is ~/.local/state/bandcamp_watcher/
+# which is outside the repo, so it's naturally excluded
+
+# Profiling data
+*.profraw
+
+# Ignore plan/checklist working files
+*.md.swp
+pr.md
+checklist.md
+CLEANUP_PLAN.md

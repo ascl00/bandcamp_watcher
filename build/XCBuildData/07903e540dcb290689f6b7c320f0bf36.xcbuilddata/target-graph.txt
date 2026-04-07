@@ -1,2 +1,0 @@
-Target dependency graph (1 target)
-Target 'Bandcamp Watcher Status' in project 'bandcamp_watcher' (no dependencies)

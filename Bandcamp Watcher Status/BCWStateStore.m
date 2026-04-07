@@ -212,8 +212,13 @@ static const NSTimeInterval kStaleThreshold = 60.0;  // 60 seconds
 }
 
 - (NSArray<BCWAlbumEvent *> *)fetchRecentAlbums:(NSUInteger)limit {
-    // Fetch both album_copied (1) and album_skipped (5) events
-    return [self fetchRecentEventsOfTypes:@[@1, @5] limit:limit];  // 1 = COPIED, 5 = SKIPPED
+    // Fetch both album_copied (4) and copy_failed (6) events
+    return [self fetchRecentEventsOfTypes:@[@4, @6] limit:limit];
+}
+
+- (NSArray<BCWAlbumEvent *> *)fetchRecentErrors:(NSUInteger)limit {
+    // Fetch copy_failed events (type 6)
+    return [self fetchRecentEventsOfType:6 limit:limit];  // 6 = EVENT_COPY_FAILED
 }
 
 - (NSArray<BCWAlbumEvent *> *)fetchRecentEvents:(NSUInteger)limit {

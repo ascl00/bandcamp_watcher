@@ -1,4 +1,0 @@
-Target dependency graph (2 targets)
-Target 'bandcamp_watcher' in project 'bandcamp_watcher'
-➜ Explicit dependency on target 'watcherlib' in project 'bandcamp_watcher'
-Target 'watcherlib' in project 'bandcamp_watcher' (no dependencies)

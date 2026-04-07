@@ -235,14 +235,14 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
         item.title = @"";
     }
     
-    // Show albums
+    // Show albums (including errors)
     if (albums.count > 0) {
         [albums enumerateObjectsUsingBlock:^(BCWAlbumEvent *album, NSUInteger idx, BOOL *stop) {
             if (idx >= 10) return;
             
             NSMenuItem *item = [menu itemWithTag:(int)(200 + idx)];
             NSString *sourceIcon = (album.sourceType == BCWSourceTypeQobuz) ? @"Q" : @"B";
-            NSString *statusIcon = (album.eventType == BCWEventTypeAlbumSkipped) ? @"○" : @"●";
+            NSString *statusIcon = (album.eventType == BCWEventTypeAlbumCopied) ? @"" : @"!";
             item.title = [NSString stringWithFormat:@"  [%@%@] %@ - %@ (%@)",
                           sourceIcon, statusIcon, album.artist, album.album, album.fileType];
             item.hidden = NO;
