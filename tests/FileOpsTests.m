@@ -45,8 +45,13 @@
     snprintf(path, sizeof(path), "%s/testfile.txt", self->testDir);
     
     FILE *f = fopen(path, "w");
-    fprintf(f, "test");
-    fclose(f);
+    XCTAssertTrue(f!=NULL);
+    if(f != NULL)
+    {
+        fprintf(f, "test");
+
+        fclose(f);
+    }
     
     // File exists but is not a directory
     XCTAssertFalse(dir_exists(path));
@@ -60,14 +65,20 @@
     snprintf(dst, sizeof(dst), "%s/dest.txt", self->testDir);
     
     FILE *f = fopen(src, "w");
-    fprintf(f, "Hello, World!");
-    fclose(f);
-    
+    XCTAssertFalse(f==NULL);
+    if(f != NULL)
+    {
+        fprintf(f, "Hello, World!");
+        fclose(f);
+    }
     XCTAssertEqual(copy(src, dst), 0);
     
     FILE *check = fopen(dst, "r");
     XCTAssertTrue(check != NULL);
-    fclose(check);
+    if(check != NULL)
+    {
+        fclose(check);
+    }
 }
 
 - (void)testCopyCopiesContentCorrectly {
@@ -77,17 +88,24 @@
     
     const char *content = "This is a test file with some content.";
     FILE *f = fopen(src, "w");
-    fprintf(f, "%s", content);
-    fclose(f);
-    
+    XCTAssertTrue(f != NULL);
+    if(f != NULL)
+    {
+        fprintf(f, "%s", content);
+        fclose(f);
+    }
     XCTAssertEqual(copy(src, dst), 0);
     
     FILE *check = fopen(dst, "r");
+    XCTAssertTrue(check != NULL);
     char buf[256];
-    fgets(buf, sizeof(buf), check);
-    fclose(check);
-    
-    XCTAssertEqualObjects(@(buf), @(content));
+
+    if(check != NULL)
+    {
+        fgets(buf, sizeof(buf), check);
+        fclose(check);
+        XCTAssertEqualObjects(@(buf), @(content));
+    }
 }
 
 - (void)testCopyFailsForNonexistentSource {
@@ -106,19 +124,26 @@
     
     // Create binary file with null bytes
     FILE *f = fopen(src, "wb");
+    XCTAssertTrue(f != NULL);
     unsigned char data[] = {0x00, 0x01, 0x02, 0xFF, 0xFE, 0x00};
-    fwrite(data, 1, sizeof(data), f);
-    fclose(f);
-    
+    if(f!=NULL)
+    {
+        fwrite(data, 1, sizeof(data), f);
+        fclose(f);
+    }
     XCTAssertEqual(copy(src, dst), 0);
     
     // Verify content
     FILE *check = fopen(dst, "rb");
+    XCTAssertTrue(check != NULL);
     unsigned char buf[6];
-    size_t n = fread(buf, 1, sizeof(buf), check);
-    fclose(check);
-    
-    XCTAssertEqual(n, 6);
+    if(check!=NULL)
+    {
+        size_t n = fread(buf, 1, sizeof(buf), check);
+        XCTAssertEqual(n, 6);
+
+        fclose(check);
+    }
     XCTAssertEqual(memcmp(data, buf, 6), 0);
 }
 
@@ -147,16 +172,23 @@
     
     // Create a file in source
     FILE *f = fopen(src_file, "w");
-    fprintf(f, "test content");
-    fclose(f);
+    XCTAssertTrue(f!=NULL);
     
+    if(f!=NULL)
+    {
+        fprintf(f, "test content");
+        fclose(f);
+    }
     XCTAssertEqual(clone(self->testDir, dst), 0);
     
     // Check file was copied
     snprintf(dst_file, sizeof(dst_file), "%s/file.txt", dst);
     FILE *check = fopen(dst_file, "r");
     XCTAssertTrue(check != NULL);
-    fclose(check);
+    if(check)
+    {
+        fclose(check);
+    }
 }
 
 - (void)testCloneCopiesMultipleFiles {
@@ -168,8 +200,11 @@
         char path[512];
         snprintf(path, sizeof(path), "%s/file%d.txt", self->testDir, i);
         FILE *f = fopen(path, "w");
-        fprintf(f, "content %d", i);
-        fclose(f);
+        if(f)
+        {
+            fprintf(f, "content %d", i);
+            fclose(f);
+        }
     }
     
     XCTAssertEqual(clone(self->testDir, dst), 0);
@@ -180,8 +215,12 @@
         snprintf(path, sizeof(path), "%s/file%d.txt", dst, i);
         FILE *check = fopen(path, "r");
         XCTAssertTrue(check != NULL);
-        fclose(check);
+        if(check)
+        {
+            fclose(check);
+        }
     }
 }
 
 @end
+

@@ -275,29 +275,32 @@ extern int is_apple_music_format(const char *ext);
     snprintf(configPath, sizeof(configPath), "%s/test_config", self->testDir);
     
     FILE *f = fopen(configPath, "w");
-    fprintf(f, "watch_dir = /test/downloads\n");
-    fprintf(f, "log_level = debug\n");
-    fprintf(f, "apple_music = false\n");
-    fprintf(f, "\n");
-    fprintf(f, "[extensions]\n");
-    fprintf(f, "flac = /test/flac\n");
-    fprintf(f, "aac = /test/aac\n");
-    fclose(f);
-    
-    // Load the config file
-    int result = config_load_file(&config, configPath);
-    XCTAssertEqual(result, 0, @"config_load_file should succeed");
-    
-    // Verify config values from file
-    XCTAssertEqual(strcmp(config.watch_dir, "/test/downloads"), 0, @"watch_dir should match");
-    XCTAssertEqual(config.log_level, LOG_DEBUG, @"log_level should be debug");
-    XCTAssertEqual(config.apple_music, 0, @"apple_music should be false");
-    XCTAssertEqual(config.num_mappings, 2, @"should have 2 mappings");
-    XCTAssertEqual(strcmp(config.mappings[0].ext, "flac"), 0, @"first ext should be flac");
-    XCTAssertEqual(strcmp(config.mappings[0].target_dir, "/test/flac"), 0, @"first dir should match");
-    XCTAssertEqual(strcmp(config.mappings[1].ext, "aac"), 0, @"second ext should be aac");
-    XCTAssertEqual(strcmp(config.mappings[1].target_dir, "/test/aac"), 0, @"second dir should match");
-    
+    XCTAssertFalse(f==NULL);
+    if(f != NULL)
+    {
+        fprintf(f, "watch_dir = /test/downloads\n");
+        fprintf(f, "log_level = debug\n");
+        fprintf(f, "apple_music = false\n");
+        fprintf(f, "\n");
+        fprintf(f, "[extensions]\n");
+        fprintf(f, "flac = /test/flac\n");
+        fprintf(f, "aac = /test/aac\n");
+        fclose(f);
+        
+        // Load the config file
+        int result = config_load_file(&config, configPath);
+        XCTAssertEqual(result, 0, @"config_load_file should succeed");
+        
+        // Verify config values from file
+        XCTAssertEqual(strcmp(config.watch_dir, "/test/downloads"), 0, @"watch_dir should match");
+        XCTAssertEqual(config.log_level, LOG_DEBUG, @"log_level should be debug");
+        XCTAssertEqual(config.apple_music, 0, @"apple_music should be false");
+        XCTAssertEqual(config.num_mappings, 2, @"should have 2 mappings");
+        XCTAssertEqual(strcmp(config.mappings[0].ext, "flac"), 0, @"first ext should be flac");
+        XCTAssertEqual(strcmp(config.mappings[0].target_dir, "/test/flac"), 0, @"first dir should match");
+        XCTAssertEqual(strcmp(config.mappings[1].ext, "aac"), 0, @"second ext should be aac");
+        XCTAssertEqual(strcmp(config.mappings[1].target_dir, "/test/aac"), 0, @"second dir should match");
+    }
     // Cleanup
     config_free(&config);
 }
