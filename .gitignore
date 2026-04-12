@@ -49,3 +49,6 @@ Packages/
 pr.md
 checklist.md
 CLEANUP_PLAN.md
+
+# Personal local scripts
+update_status_app.sh
