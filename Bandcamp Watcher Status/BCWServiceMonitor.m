@@ -15,6 +15,28 @@ static NSString * const kLaunchdLabel = @"launched.bandcamp_watcher";
 
 @implementation BCWServiceMonitor
 
+- (NSString *)serviceTarget {
+    uid_t uid = getuid();
+    return [NSString stringWithFormat:@"gui/%d/%@", uid, self.serviceLabel];
+}
+
+- (BOOL)runLaunchctlWithArguments:(NSArray<NSString *> *)arguments {
+    NSTask *task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
+    task.arguments = arguments;
+    task.standardOutput = [NSPipe pipe];
+    task.standardError = [NSPipe pipe];
+
+    NSError *error = nil;
+    BOOL launched = [task launchAndReturnError:&error];
+    if (!launched) {
+        return NO;
+    }
+
+    [task waitUntilExit];
+    return task.terminationStatus == 0;
+}
+
 - (instancetype)initWithServiceLabel:(NSString *)label {
     self = [super init];
     if (self) {
@@ -37,12 +59,11 @@ static NSString * const kLaunchdLabel = @"launched.bandcamp_watcher";
 
 - (BCWServiceState)checkLaunchctlState {
     // Query launchctl print for the specific service
-    uid_t uid = getuid();
-    NSString *domain = [NSString stringWithFormat:@"gui/%d", uid];
+    NSString *serviceTarget = [self serviceTarget];
     
     NSTask *task = [[NSTask alloc] init];
     task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
-    task.arguments = @[@"print", [NSString stringWithFormat:@"%@/%@", domain, self.serviceLabel]];
+    task.arguments = @[@"print", serviceTarget];
     
     NSPipe *outputPipe = [NSPipe pipe];
     task.standardOutput = outputPipe;
@@ -78,6 +99,24 @@ static NSString * const kLaunchdLabel = @"launched.bandcamp_watcher";
     }
     
     return BCWServiceStateUnknown;
+}
+
+- (BOOL)startService {
+    BOOL ok = [self runLaunchctlWithArguments:@[@"kickstart", [self serviceTarget]]];
+    [self checkState];
+    return ok;
+}
+
+- (BOOL)stopService {
+    BOOL ok = [self runLaunchctlWithArguments:@[@"stop", [self serviceTarget]]];
+    [self checkState];
+    return ok;
+}
+
+- (BOOL)restartService {
+    BOOL ok = [self runLaunchctlWithArguments:@[@"kickstart", @"-k", [self serviceTarget]]];
+    [self checkState];
+    return ok;
 }
 
 - (BOOL)isEnabled {

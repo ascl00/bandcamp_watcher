@@ -31,4 +31,9 @@ typedef NS_ENUM(NSInteger, BCWServiceState) {
 - (BOOL)isRunning;
 - (NSString *)stateDescription;
 
+// Service controls
+- (BOOL)startService;
+- (BOOL)stopService;
+- (BOOL)restartService;
+
 @end

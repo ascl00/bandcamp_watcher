@@ -10,13 +10,19 @@
 #import "BCWStateStore.h"
 
 static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
+static const NSInteger kStartActionTag = 120;
+static const NSInteger kRestartActionTag = 121;
+static const NSInteger kStopActionTag = 122;
 
-@interface BCWStatusController ()
+@interface BCWStatusController () <NSMenuDelegate>
 @property (readwrite, nonatomic, strong) NSStatusItem *statusItem;
 @property (strong, nonatomic) BCWServiceMonitor *serviceMonitor;
 @property (strong, nonatomic) BCWStateStore *stateStore;
 @property (strong, nonatomic) NSTimer *refreshTimer;
 @property (readwrite, nonatomic) BOOL isRunning;
+@property (nonatomic) BOOL hasUnseenCopiedAlbums;
+@property (nullable, nonatomic, strong) NSDate *latestCopiedAlbumAt;
+@property (nullable, nonatomic, strong) NSDate *lastSeenCopiedAlbumAt;
 @end
 
 @implementation BCWStatusController
@@ -27,6 +33,7 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
         _serviceMonitor = [[BCWServiceMonitor alloc] init];
         _stateStore = [[BCWStateStore alloc] init];
         _isRunning = NO;
+        _hasUnseenCopiedAlbums = NO;
     }
     return self;
 }
@@ -66,7 +73,7 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
 }
 
 - (void)statusItemClicked:(id)sender {
-    // Force menu to show
+    [self markCopiedAlbumsAsSeen];
     [self refresh:nil];
 }
 
@@ -85,6 +92,7 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
 - (NSMenu *)createMenu {
     NSMenu *menu = [[NSMenu alloc] init];
     menu.autoenablesItems = NO;
+    menu.delegate = self;
     
     // Status section
     NSMenuItem *statusHeader = [[NSMenuItem alloc] initWithTitle:@"Status: Checking..."
@@ -107,9 +115,35 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
     heartbeatItem.tag = 102;
     heartbeatItem.enabled = NO;
     [menu addItem:heartbeatItem];
-    
+
     [menu addItem:[NSMenuItem separatorItem]];
-    
+
+    NSMenuItem *startItem = [[NSMenuItem alloc] initWithTitle:@"Start Watcher"
+                                                        action:@selector(startWatcher:)
+                                                 keyEquivalent:@""];
+    startItem.tag = kStartActionTag;
+    startItem.target = self;
+    startItem.hidden = YES;
+    [menu addItem:startItem];
+
+    NSMenuItem *restartItem = [[NSMenuItem alloc] initWithTitle:@"Restart Watcher"
+                                                          action:@selector(restartWatcher:)
+                                                   keyEquivalent:@""];
+    restartItem.tag = kRestartActionTag;
+    restartItem.target = self;
+    restartItem.hidden = YES;
+    [menu addItem:restartItem];
+
+    NSMenuItem *stopItem = [[NSMenuItem alloc] initWithTitle:@"Stop Watcher"
+                                                       action:@selector(stopWatcher:)
+                                                keyEquivalent:@""];
+    stopItem.tag = kStopActionTag;
+    stopItem.target = self;
+    stopItem.hidden = YES;
+    [menu addItem:stopItem];
+
+    [menu addItem:[NSMenuItem separatorItem]];
+
     // Recent albums header
     NSMenuItem *albumsHeader = [[NSMenuItem alloc] initWithTitle:@"Recent Albums"
                                                             action:nil
@@ -160,6 +194,11 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
     return menu;
 }
 
+- (void)menuWillOpen:(NSMenu *)menu {
+    [self markCopiedAlbumsAsSeen];
+    [self refresh:nil];
+}
+
 - (void)refresh:(nullable id)sender {
     // Check service state
     BCWServiceState serviceState = [self.serviceMonitor checkState];
@@ -173,7 +212,9 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
 
 - (void)updateMenuWithServiceState:(BCWServiceState)serviceState
                            runtime:(nullable BCWRuntimeStatus *)runtime
-                            albums:(NSArray<BCWAlbumEvent *> *)albums {
+                             albums:(NSArray<BCWAlbumEvent *> *)albums {
+    [self updateUnseenAlbumIndicatorWithAlbums:albums];
+
     NSMenu *menu = self.statusItem.menu;
     
     // Update status header
@@ -181,24 +222,20 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
     NSString *statusText;
     
     if (serviceState == BCWServiceStateRunning && runtime) {
-        if (runtime.isStale) {
-            statusText = @"Status: Running (stale)";
-            self.statusItem.button.title = @"♫ ?";
-        } else {
-            statusText = @"Status: Running";
-            self.statusItem.button.title = @"♫";
-        }
+        statusText = @"Status: Running";
+        [self setStatusIconBase:@"♫"];
     } else if (serviceState == BCWServiceStateEnabledNotRunning) {
         statusText = @"Status: Enabled (not running)";
-        self.statusItem.button.title = @"♫ ○";
+        [self setStatusIconBase:@"♫ ○"];
     } else if (serviceState == BCWServiceStateNotRegistered) {
         statusText = @"Status: Not Installed";
-        self.statusItem.button.title = @"♫ ✕";
+        [self setStatusIconBase:@"♫ ✕"];
     } else {
         statusText = [NSString stringWithFormat:@"Status: %@", [self.serviceMonitor stateDescription]];
-        self.statusItem.button.title = @"♫ ?";
+        [self setStatusIconBase:@"♫ ?"];
     }
     statusHeader.title = statusText;
+    [self updateServiceActionsForState:serviceState menu:menu];
     
     // Update mode
     NSMenuItem *modeItem = [menu itemWithTag:101];
@@ -255,6 +292,76 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
     }
 }
 
+- (void)setStatusIconBase:(NSString *)baseIcon {
+    NSString *indicator = self.hasUnseenCopiedAlbums ? @" •" : @"";
+    self.statusItem.button.title = [baseIcon stringByAppendingString:indicator];
+}
+
+- (void)markCopiedAlbumsAsSeen {
+    self.lastSeenCopiedAlbumAt = self.latestCopiedAlbumAt;
+    self.hasUnseenCopiedAlbums = NO;
+}
+
+- (nullable NSDate *)latestCopiedTimestampInAlbums:(NSArray<BCWAlbumEvent *> *)albums {
+    NSDate *latest = nil;
+    for (BCWAlbumEvent *album in albums) {
+        if (album.eventType != BCWEventTypeAlbumCopied) {
+            continue;
+        }
+        if (!latest || [album.timestamp compare:latest] == NSOrderedDescending) {
+            latest = album.timestamp;
+        }
+    }
+    return latest;
+}
+
+- (void)updateUnseenAlbumIndicatorWithAlbums:(NSArray<BCWAlbumEvent *> *)albums {
+    self.latestCopiedAlbumAt = [self latestCopiedTimestampInAlbums:albums];
+
+    if (!self.latestCopiedAlbumAt) {
+        self.hasUnseenCopiedAlbums = NO;
+        return;
+    }
+
+    if (!self.lastSeenCopiedAlbumAt) {
+        self.lastSeenCopiedAlbumAt = self.latestCopiedAlbumAt;
+        self.hasUnseenCopiedAlbums = NO;
+        return;
+    }
+
+    self.hasUnseenCopiedAlbums =
+        ([self.latestCopiedAlbumAt compare:self.lastSeenCopiedAlbumAt] == NSOrderedDescending);
+}
+
+- (void)updateServiceActionsForState:(BCWServiceState)serviceState menu:(NSMenu *)menu {
+    NSMenuItem *startItem = [menu itemWithTag:kStartActionTag];
+    NSMenuItem *restartItem = [menu itemWithTag:kRestartActionTag];
+    NSMenuItem *stopItem = [menu itemWithTag:kStopActionTag];
+
+    startItem.hidden = YES;
+    restartItem.hidden = YES;
+    stopItem.hidden = YES;
+    startItem.enabled = YES;
+    restartItem.enabled = YES;
+    stopItem.enabled = YES;
+    startItem.title = @"Start Watcher";
+
+    if (serviceState == BCWServiceStateRunning) {
+        restartItem.hidden = NO;
+        stopItem.hidden = NO;
+    } else if (serviceState == BCWServiceStateEnabledNotRunning) {
+        startItem.hidden = NO;
+    } else if (serviceState == BCWServiceStateNotRegistered) {
+        startItem.hidden = NO;
+        startItem.enabled = NO;
+        startItem.title = @"Start Watcher (service not installed)";
+    } else {
+        startItem.hidden = NO;
+        startItem.enabled = NO;
+        startItem.title = @"Start Watcher (unavailable)";
+    }
+}
+
 #pragma mark - Actions
 
 - (void)openConfig:(nullable id)sender {
@@ -285,6 +392,27 @@ static const NSTimeInterval kRefreshInterval = 5.0;  // 5 seconds
         NSURL *url = [NSURL fileURLWithPath:openPath];
         [[NSWorkspace sharedWorkspace] openURL:url];
     });
+}
+
+- (void)startWatcher:(nullable id)sender {
+    if (![self.serviceMonitor startService]) {
+        NSBeep();
+    }
+    [self refresh:nil];
+}
+
+- (void)stopWatcher:(nullable id)sender {
+    if (![self.serviceMonitor stopService]) {
+        NSBeep();
+    }
+    [self refresh:nil];
+}
+
+- (void)restartWatcher:(nullable id)sender {
+    if (![self.serviceMonitor restartService]) {
+        NSBeep();
+    }
+    [self refresh:nil];
 }
 
 - (void)openDBFolder:(nullable id)sender {

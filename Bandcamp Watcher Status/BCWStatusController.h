@@ -20,6 +20,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Menu actions
 - (void)refresh:(nullable id)sender;
+- (void)startWatcher:(nullable id)sender;
+- (void)stopWatcher:(nullable id)sender;
+- (void)restartWatcher:(nullable id)sender;
 - (void)openConfig:(nullable id)sender;
 - (void)openDBFolder:(nullable id)sender;
 - (void)quit:(nullable id)sender;
