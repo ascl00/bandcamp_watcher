@@ -17,6 +17,7 @@ DerivedData/
 !default.perspectivev3
 xcuserdata/
 bandcamp_watcher.xcodeproj/xcuserdata/**/xcschememanagement.plist
+bandcamp_watcher.xcodeproj/xcuserdata/**/xcdebugger/Breakpoints_v2.xcbkptlist
 
 # Xcode - Swift Package Manager
 .build/
