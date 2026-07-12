@@ -17,5 +17,9 @@
     <true/>
     <key>UserName</key>
     <string>USERNAME</string>
+    <key>StandardOutPath</key>
+    <string>/Users/USERNAME/Library/Logs/bandcamp_watcher.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/USERNAME/Library/Logs/bandcamp_watcher.error.log</string>
   </dict>
 </plist>

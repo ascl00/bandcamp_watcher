@@ -22,13 +22,20 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
 
     // We want to see if this looks like a folder downloaded from a music service
     // Typical structure is <bandname> - <album name> possibly with a "-<number>" appended
-
-    // First lets just check if we have at least one dash
+    // Note the spaces, if a band-name contains a dash, we should ignore it.
+    
+    // First lets just check if we have at least one dash, with spaces either side
     const char *p = folder;
     while(*p)
     {
         if(*p == '-')
-            break;
+        {
+            // Must be specifically name<space>-<space>name
+            if(p > folder && *(p-1)  == ' ' && *(p+1) == ' ')
+            {
+                break;
+            }
+        }
         p++;
     }
 
