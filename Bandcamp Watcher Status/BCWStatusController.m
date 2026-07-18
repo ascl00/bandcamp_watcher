@@ -182,6 +182,12 @@ static const NSInteger kStopActionTag = 122;
                                                     keyEquivalent:@"d"];
     dbFolderItem.target = self;
     [menu addItem:dbFolderItem];
+
+    NSMenuItem *logsItem = [[NSMenuItem alloc] initWithTitle:@"Show Logs"
+                                                       action:@selector(showLogs:)
+                                                keyEquivalent:@"l"];
+    logsItem.target = self;
+    [menu addItem:logsItem];
     
     [menu addItem:[NSMenuItem separatorItem]];
     
@@ -396,23 +402,63 @@ static const NSInteger kStopActionTag = 122;
 
 - (void)startWatcher:(nullable id)sender {
     if (![self.serviceMonitor startService]) {
-        NSBeep();
+        [self showServiceControlFailureForAction:@"Start"];
+        [self refresh:nil];
+        return;
     }
     [self refresh:nil];
+
+    // kickstart only confirms that launchd accepted the request. The process may
+    // still exit immediately, before it creates either watcher log file.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        BCWServiceState state = [self.serviceMonitor checkState];
+        if (state != BCWServiceStateRunning) {
+            NSString *diagnostic = [self.serviceMonitor serviceDiagnostic];
+            NSLog(@"Watcher did not remain running after kickstart: %@", diagnostic);
+            [self showServiceControlFailureForAction:@"Start" diagnostic:diagnostic];
+        }
+        [self refresh:nil];
+    });
 }
 
 - (void)stopWatcher:(nullable id)sender {
     if (![self.serviceMonitor stopService]) {
-        NSBeep();
+        [self showServiceControlFailureForAction:@"Stop"];
     }
     [self refresh:nil];
 }
 
 - (void)restartWatcher:(nullable id)sender {
     if (![self.serviceMonitor restartService]) {
-        NSBeep();
+        [self showServiceControlFailureForAction:@"Restart"];
     }
     [self refresh:nil];
+}
+
+- (void)showServiceControlFailureForAction:(NSString *)action {
+    NSString *diagnostic = self.serviceMonitor.lastControlError;
+    if (diagnostic.length == 0) {
+        diagnostic = @"launchctl did not provide an error message.";
+    }
+    [self showServiceControlFailureForAction:action diagnostic:diagnostic];
+}
+
+- (void)showServiceControlFailureForAction:(NSString *)action
+                                diagnostic:(NSString *)diagnostic {
+
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.alertStyle = NSAlertStyleWarning;
+    alert.messageText = [NSString stringWithFormat:@"Couldn’t %@ Watcher", action];
+    alert.informativeText = [NSString stringWithFormat:
+        @"%@\n\nThe watcher may not have started, so its log files might not contain this failure.",
+        diagnostic];
+    [alert addButtonWithTitle:@"OK"];
+    [alert addButtonWithTitle:@"Show Logs"];
+
+    if ([alert runModal] == NSAlertSecondButtonReturn) {
+        [self showLogs:nil];
+    }
 }
 
 - (void)openDBFolder:(nullable id)sender {
@@ -424,6 +470,33 @@ static const NSInteger kStopActionTag = 122;
         
         NSURL *url = [NSURL fileURLWithPath:dbFolder];
         [[NSWorkspace sharedWorkspace] openURL:url];
+    });
+}
+
+- (void)showLogs:(nullable id)sender {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        NSString *logsFolder = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs"];
+        NSArray<NSString *> *logPaths = @[
+            [logsFolder stringByAppendingPathComponent:@"bandcamp_watcher.log"],
+            [logsFolder stringByAppendingPathComponent:@"bandcamp_watcher.error.log"]
+        ];
+
+        NSFileManager *fileManager = [NSFileManager defaultManager];
+        NSMutableArray<NSURL *> *existingLogs = [NSMutableArray array];
+        for (NSString *path in logPaths) {
+            if ([fileManager fileExistsAtPath:path]) {
+                [existingLogs addObject:[NSURL fileURLWithPath:path]];
+            }
+        }
+
+        if (existingLogs.count > 0) {
+            NSLog(@"Showing watcher logs: %@", existingLogs);
+            [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:existingLogs];
+            return;
+        }
+
+        NSLog(@"Watcher log files do not exist yet; opening logs folder: %@", logsFolder);
+        [[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:logsFolder]];
     });
 }
 

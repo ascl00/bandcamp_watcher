@@ -11,6 +11,7 @@ static NSString * const kLaunchdLabel = @"launched.bandcamp_watcher";
 
 @interface BCWServiceMonitor ()
 @property (readwrite, nonatomic) BCWServiceState currentState;
+@property (readwrite, nullable, nonatomic, copy) NSString *lastControlError;
 @end
 
 @implementation BCWServiceMonitor
@@ -24,17 +25,45 @@ static NSString * const kLaunchdLabel = @"launched.bandcamp_watcher";
     NSTask *task = [[NSTask alloc] init];
     task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
     task.arguments = arguments;
-    task.standardOutput = [NSPipe pipe];
-    task.standardError = [NSPipe pipe];
+    NSPipe *outputPipe = [NSPipe pipe];
+    NSPipe *errorPipe = [NSPipe pipe];
+    task.standardOutput = outputPipe;
+    task.standardError = errorPipe;
+    self.lastControlError = nil;
 
     NSError *error = nil;
     BOOL launched = [task launchAndReturnError:&error];
     if (!launched) {
+        self.lastControlError = error.localizedDescription ?: @"Unable to launch /bin/launchctl.";
+        NSLog(@"launchctl %@ could not be launched: %@",
+              [arguments componentsJoinedByString:@" "], self.lastControlError);
         return NO;
     }
 
     [task waitUntilExit];
-    return task.terminationStatus == 0;
+    NSData *outputData = [[outputPipe fileHandleForReading] readDataToEndOfFile];
+    NSData *errorData = [[errorPipe fileHandleForReading] readDataToEndOfFile];
+    NSString *output = [[NSString alloc] initWithData:outputData encoding:NSUTF8StringEncoding];
+    NSString *errorOutput = [[NSString alloc] initWithData:errorData encoding:NSUTF8StringEncoding];
+
+    if (task.terminationStatus == 0) {
+        return YES;
+    }
+
+    NSString *diagnostic = [errorOutput stringByTrimmingCharactersInSet:
+                            [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (diagnostic.length == 0) {
+        diagnostic = [output stringByTrimmingCharactersInSet:
+                      [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    }
+    if (diagnostic.length == 0) {
+        diagnostic = [NSString stringWithFormat:@"launchctl exited with status %d.",
+                      task.terminationStatus];
+    }
+    self.lastControlError = diagnostic;
+    NSLog(@"launchctl %@ failed (status %d): %@",
+          [arguments componentsJoinedByString:@" "], task.terminationStatus, diagnostic);
+    return NO;
 }
 
 - (instancetype)initWithServiceLabel:(NSString *)label {
@@ -99,6 +128,34 @@ static NSString * const kLaunchdLabel = @"launched.bandcamp_watcher";
     }
     
     return BCWServiceStateUnknown;
+}
+
+- (NSString *)serviceDiagnostic {
+    NSString *serviceTarget = [self serviceTarget];
+    NSTask *task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
+    task.arguments = @[@"print", serviceTarget];
+
+    NSPipe *combinedPipe = [NSPipe pipe];
+    task.standardOutput = combinedPipe;
+    task.standardError = combinedPipe;
+
+    NSError *error = nil;
+    if (![task launchAndReturnError:&error]) {
+        return error.localizedDescription ?: @"Unable to run launchctl print.";
+    }
+
+    [task waitUntilExit];
+    NSData *data = [[combinedPipe fileHandleForReading] readDataToEndOfFile];
+    NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    output = [output stringByTrimmingCharactersInSet:
+              [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+
+    if (output.length > 0) {
+        return output;
+    }
+    return [NSString stringWithFormat:@"launchctl print exited with status %d.",
+            task.terminationStatus];
 }
 
 - (BOOL)startService {

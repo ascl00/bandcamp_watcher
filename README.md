@@ -204,6 +204,27 @@ xcodebuild test -scheme bandcamp_watcherTests
 
 ## Running as a Service (launchd)
 
+### Release build and local install
+
+Build both Release schemes and install their products under `~/bin`:
+
+```bash
+./scripts/install-release.sh
+```
+
+This installs:
+
+- `~/bin/bandcamp_watcher`
+- `~/bin/Bandcamp Watcher Status.app`
+- `~/Library/LaunchAgents/launched.bandcamp_watcher.plist`
+
+The script uses `build/release-install` as its explicit DerivedData directory, so
+the build products are also easy to inspect. The installed plist is generated
+from the repository template with the current username, home directory, binary
+path, and log paths; the template itself is not modified. The script does not
+load or restart the service. It can be invoked from an Xcode Run Script action
+using `"$SRCROOT/scripts/install-release.sh"`.
+
 To run bandcamp_watcher automatically in the background on macOS, use the included `bandcamp_watcher.plist` file with launchd.
 
 ### Setup

@@ -7,6 +7,8 @@
 
 #import <Foundation/Foundation.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 typedef NS_ENUM(NSInteger, BCWServiceState) {
     BCWServiceStateUnknown = 0,
     BCWServiceStateNotRegistered,
@@ -20,8 +22,9 @@ typedef NS_ENUM(NSInteger, BCWServiceState) {
 
 @property (readonly, nonatomic) BCWServiceState currentState;
 @property (readonly, nonatomic, copy) NSString *serviceLabel;
+@property (readonly, nullable, nonatomic, copy) NSString *lastControlError;
 
-- (instancetype)initWithServiceLabel:(NSString *)label;
+- (instancetype)initWithServiceLabel:(nullable NSString *)label;
 
 // Check current service state (synchronous, may block briefly)
 - (BCWServiceState)checkState;
@@ -31,9 +34,14 @@ typedef NS_ENUM(NSInteger, BCWServiceState) {
 - (BOOL)isRunning;
 - (NSString *)stateDescription;
 
+// Raw launchd diagnostic for failures that occur after kickstart succeeds.
+- (NSString *)serviceDiagnostic;
+
 // Service controls
 - (BOOL)startService;
 - (BOOL)stopService;
 - (BOOL)restartService;
 
 @end
+
+NS_ASSUME_NONNULL_END
