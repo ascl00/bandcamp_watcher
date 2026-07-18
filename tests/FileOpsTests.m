@@ -165,6 +165,34 @@
     XCTAssertEqual(clone(src, dst), ENOENT);
 }
 
+- (void)testCloneRejectsRegularFileSource {
+    char source[512], destination[512];
+    snprintf(source, sizeof(source), "%s/source.txt", testDir);
+    snprintf(destination, sizeof(destination), "%s/destination", testDir);
+    FILE *f = fopen(source, "w");
+    XCTAssertNotEqual(f, NULL);
+    if (f) fclose(f);
+    XCTAssertEqual(clone(source, destination), ENOENT);
+}
+
+- (void)testCloneRejectsDestinationRegularFile {
+    char destination[512];
+    snprintf(destination, sizeof(destination), "%s/destination", testDir);
+    FILE *f = fopen(destination, "w");
+    XCTAssertNotEqual(f, NULL);
+    if (f) fclose(f);
+    XCTAssertNotEqual(clone(testDir, destination), 0);
+}
+
+- (void)testCloneEmptyDirectory {
+    char source[512], destination[512];
+    snprintf(source, sizeof(source), "%s/empty", testDir);
+    snprintf(destination, sizeof(destination), "%s/destination", testDir);
+    XCTAssertEqual(mkdir(source, 0755), 0);
+    XCTAssertEqual(clone(source, destination), 0);
+    XCTAssertTrue(dir_exists(destination));
+}
+
 - (void)testCloneCopiesFiles {
     char dst[512], src_file[512], dst_file[512];
     snprintf(dst, sizeof(dst), "%s_clone", self->testDir);
@@ -222,5 +250,49 @@
     }
 }
 
-@end
+- (void)testCloneCreatesDestinationWithStandardDirectoryPermissions {
+    char dst[512];
+    snprintf(dst, sizeof(dst), "%s_clone", self->testDir);
 
+    XCTAssertEqual(clone(self->testDir, dst), 0);
+
+    struct stat info;
+    XCTAssertEqual(stat(dst, &info), 0);
+    XCTAssertEqual(info.st_mode & 0777, 0755);
+}
+
+- (void)testClonePropagatesDestinationWriteFailure {
+    char src_file[512];
+    snprintf(src_file, sizeof(src_file), "%s/file.txt", self->testDir);
+    FILE *f = fopen(src_file, "w");
+    XCTAssertNotEqual(f, NULL);
+    if (f) {
+        fputs("content", f);
+        fclose(f);
+    }
+
+    XCTAssertNotEqual(clone(self->testDir, "/dev/null/album"), 0);
+}
+
+- (void)testCloneRemovesNewPartialDestinationAfterCopyFailure {
+    char source[512], destination[512], unreadable_file[512];
+    snprintf(source, sizeof(source), "%s/source", self->testDir);
+    snprintf(destination, sizeof(destination), "%s/destination", self->testDir);
+    snprintf(unreadable_file, sizeof(unreadable_file), "%s/unreadable.txt", source);
+    XCTAssertEqual(mkdir(source, 0755), 0);
+    FILE *f = fopen(unreadable_file, "w");
+    XCTAssertNotEqual(f, NULL);
+    if (f) {
+        fputs("content", f);
+        fclose(f);
+    }
+    XCTAssertEqual(chmod(unreadable_file, 0000), 0);
+
+    XCTAssertNotEqual(clone(source, destination), 0);
+    XCTAssertFalse(dir_exists(destination));
+
+    // Restore permissions so the existing test cleanup can remove the file.
+    XCTAssertEqual(chmod(unreadable_file, 0600), 0);
+}
+
+@end

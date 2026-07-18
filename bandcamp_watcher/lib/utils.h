@@ -17,6 +17,9 @@ int name_compare(const char* s1, const char* s2, size_t len);
 /* Returns 0 if matches, non-zero otherwise */
 int is_matching_extension(const char *filename, const char *ext);
 
+/* Write left + "/" + right to path. Returns 0, or -1 if it will not fit. */
+int path_join(char *path, size_t path_size, const char *left, const char *right);
+
 /* Trim whitespace from string (modifies in place, returns pointer to trimmed string) */
 char *trim(char *str);
 

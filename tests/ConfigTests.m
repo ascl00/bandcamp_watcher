@@ -266,6 +266,81 @@ extern int is_apple_music_format(const char *ext);
 
 #pragma mark - config_load file parsing tests
 
+- (void)testSetWatchDirectoryAbsoluteAndReplacement {
+    config_t config;
+    config_init(&config);
+    config.watch_dir = strdup("/old/path");
+    XCTAssertEqual(config_set_watch_dir(&config, testDir), 0);
+    XCTAssertEqual(strcmp(config.watch_dir, testDir), 0);
+    config_free(&config);
+}
+
+- (void)testSetWatchDirectoryRejectsInvalidInputs {
+    config_t config;
+    config_init(&config);
+    XCTAssertEqual(config_set_watch_dir(&config, NULL), -1);
+    XCTAssertEqual(config_set_watch_dir(&config, ""), -1);
+    XCTAssertEqual(config_set_watch_dir(&config, "/definitely/missing/bcw"), -1);
+    config_free(&config);
+}
+
+- (void)testSetWatchDirectoryExpandsTilde {
+    const char *original = getenv("HOME");
+    char *saved = original ? strdup(original) : NULL;
+    setenv("HOME", testDir, 1);
+    char child[PATH_MAX];
+    snprintf(child, sizeof(child), "%s/downloads", testDir);
+    XCTAssertEqual(mkdir(child, 0755), 0);
+    config_t config;
+    config_init(&config);
+    XCTAssertEqual(config_set_watch_dir(&config, "~/downloads"), 0);
+    XCTAssertEqual(strcmp(config.watch_dir, child), 0);
+    config_free(&config);
+    rmdir(child);
+    if (saved) { setenv("HOME", saved, 1); free(saved); } else unsetenv("HOME");
+}
+
+- (void)testSetWatchDirectoryCannotExpandWithoutHome {
+    const char *original = getenv("HOME");
+    char *saved = original ? strdup(original) : NULL;
+    unsetenv("HOME");
+    config_t config;
+    config_init(&config);
+    XCTAssertEqual(config_set_watch_dir(&config, "~/downloads"), -1);
+    config_free(&config);
+    if (saved) { setenv("HOME", saved, 1); free(saved); }
+}
+
+- (void)testLoadMissingExplicitConfigUsesDefaults {
+    const char *original = getenv("HOME");
+    char *saved = original ? strdup(original) : NULL;
+    setenv("HOME", testDir, 1);
+    char downloads[PATH_MAX];
+    snprintf(downloads, sizeof(downloads), "%s/Downloads", testDir);
+    XCTAssertEqual(mkdir(downloads, 0755), 0);
+    config_t config;
+    XCTAssertEqual(config_load_file(&config, "/tmp/no-such-bcw-config"), 0);
+    XCTAssertEqual(strcmp(config.watch_dir, downloads), 0);
+    XCTAssertEqual(config.num_mappings, 3);
+    config_free(&config);
+    rmdir(downloads);
+    if (saved) { setenv("HOME", saved, 1); free(saved); } else unsetenv("HOME");
+}
+
+- (void)testLoadConfigIgnoresCommentsBlankMalformedAndUnknownKeys {
+    char path[PATH_MAX];
+    snprintf(path, sizeof(path), "%s/config", testDir);
+    FILE *f = fopen(path, "w");
+    XCTAssertNotEqual(f, NULL);
+    fprintf(f, "# comment\n\nunknown = value\nmalformed\nwatch_dir = %s\n[extensions]\nflac = /music\n", testDir);
+    fclose(f);
+    config_t config;
+    XCTAssertEqual(config_load_file(&config, path), 0);
+    XCTAssertEqual(strcmp(config.watch_dir, testDir), 0);
+    XCTAssertEqual(config.num_mappings, 1);
+    config_free(&config);
+}
+
 - (void)testLoadConfigFileBasic {
     config_t config;
     config_init(&config);

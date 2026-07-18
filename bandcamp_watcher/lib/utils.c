@@ -44,13 +44,24 @@ int name_compare(const char* s1, const char* s2, size_t len)
 
 int is_matching_extension(const char *filename, const char *ext)
 {
-    const char *p = filename + strlen(filename);
-    
-    p-=strlen(ext); // wind p back to where ext should start, ie ".ext"
-    if(p<filename) // wound back before start of string
-        return 0;
-    
-    return strcasecmp(p, ext);
+    if (!filename || !ext) return -1;
+
+    size_t filename_len = strlen(filename);
+    size_t ext_len = strlen(ext);
+    if (ext_len == 0 || filename_len < ext_len) return -1;
+
+    return strcasecmp(filename + filename_len - ext_len, ext);
+}
+
+int path_join(char *path, size_t path_size, const char *left, const char *right)
+{
+    if (!path || path_size == 0 || !left || !right) return -1;
+
+    size_t left_len = strlen(left);
+    int needs_slash = left_len > 0 && left[left_len - 1] != '/';
+    int written = snprintf(path, path_size, "%s%s%s", left,
+                           needs_slash ? "/" : "", right);
+    return written >= 0 && (size_t)written < path_size ? 0 : -1;
 }
 
 /* Trim whitespace from string (modifies in place, returns pointer to trimmed string) */

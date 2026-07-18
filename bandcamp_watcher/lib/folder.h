@@ -30,7 +30,7 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
                       char *album, size_t album_len);
 
 /* Format band_info_t as readable string (Band -> Album (type)) */
-const char *band_info_string(band_info_t *bi);
+const char *band_info_string(const band_info_t *bi);
 
 /* Unified folder check that validates music folder structure
  *

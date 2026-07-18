@@ -16,7 +16,9 @@
 #include <dirent.h>      // for opendir()
 #include <sys/stat.h>    // for stat()
 #include <sys/time.h>    // for timespec_diff_macro()
+#include <sys/wait.h>
 #include <limits.h>
+#include <spawn.h>
 
 #include "log.h"         // logging functions
 #include "copy.h"
@@ -33,6 +35,26 @@ typedef struct {
     state_db_t *state_db;
     struct timeval last_heartbeat;  // last time we wrote heartbeat
 } context_t;
+
+typedef enum {
+    CONFIRM_PROCESS,
+    CONFIRM_SKIP_ONE,
+    CONFIRM_SKIP_ALL,
+    CONFIRM_QUIT
+} confirmation_result_t;
+
+typedef enum {
+    PROCESS_COMPLETED,
+    PROCESS_QUIT,
+    PROCESS_FATAL
+} process_status_t;
+
+typedef struct {
+    process_status_t status;
+    unsigned int error_count;
+} process_result_t;
+
+extern char **environ;
 
 char *flagstring(int flags)
 {
@@ -53,9 +75,26 @@ char *flagstring(int flags)
 
 int add_folder_to_apple_music(const char *folder)
 {
-    char cmd[NAME_MAX+1];
-    sprintf(cmd, "/usr/bin/osascript -e \"tell application \\\"Music\\\" to add Posix file \\\"%s\\\"\"", folder);
-    return system(cmd);
+    if (!folder) return EINVAL;
+
+    char *const argv[] = {
+        "/usr/bin/osascript",
+        "-e",
+        "on run argv",
+        "-e",
+        "tell application \"Music\" to add POSIX file (item 1 of argv)",
+        "-e",
+        "end run",
+        (char *)folder,
+        NULL
+    };
+    pid_t pid;
+    int result = posix_spawn(&pid, argv[0], NULL, NULL, argv, environ);
+    if (result != 0) return result;
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) return errno;
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : EIO;
 }
 
 // Get target directory for a file type extension
@@ -73,7 +112,7 @@ static const char *get_target_dir(const config_t *config, const char *ext)
 
 // Show confirmation prompt for a folder
 // Returns: 1 = process, 0 = skip, -1 = quit
-static int confirm_action(const char *folder_name, const band_info_t *info, 
+static confirmation_result_t confirm_action(const char *folder_name, const band_info_t *info,
                           const char *src_path, const char *dst_path,
                           int dry_run)
 {
@@ -89,7 +128,7 @@ static int confirm_action(const char *folder_name, const band_info_t *info,
         } else {
             printf("  Would NOT add to Apple Music (format not supported)\n");
         }
-        return 1;  // In dry-run, always "process" (but don't actually do it)
+        return CONFIRM_PROCESS;
     }
     
     printf("\nProcess this album? [y/n/s/q] ");
@@ -97,30 +136,34 @@ static int confirm_action(const char *folder_name, const band_info_t *info,
     
     char response[10];
     if (fgets(response, sizeof(response), stdin) == NULL) {
-        return -1;  // EOF or error
+        return CONFIRM_QUIT;
     }
     
     // Remove newline
     response[strcspn(response, "\n")] = '\0';
     
     if (response[0] == 'y' || response[0] == 'Y') {
-        return 1;
+        return CONFIRM_PROCESS;
     } else if (response[0] == 'n' || response[0] == 'N') {
-        return 0;
+        return CONFIRM_SKIP_ONE;
     } else if (response[0] == 's' || response[0] == 'S') {
-        return 0;  // Skip remaining
+        return CONFIRM_SKIP_ALL;
     } else if (response[0] == 'q' || response[0] == 'Q') {
-        return -1;  // Quit
+        return CONFIRM_QUIT;
     }
     
     // Default to yes if unclear
-    return 1;
+    return CONFIRM_PROCESS;
 }
 
-int process(context_t *context)
+static process_result_t process(context_t *context)
 {
+    process_result_t result = { .status = PROCESS_COMPLETED, .error_count = 0 };
     config_t *config = context->config;
-    if (!config) return -1;
+    if (!config) {
+        result.status = PROCESS_FATAL;
+        return result;
+    }
     
     struct timeval start_of_run;
     gettimeofday(&start_of_run, NULL);
@@ -135,42 +178,49 @@ int process(context_t *context)
     
     if (dirp == NULL) {
         log_error("Failed to open watch directory %s: %s", config->watch_dir, strerror(errno));
-        return -1;
+        result.status = PROCESS_FATAL;
+        return result;
     }
-    
-    int skip_remaining = 0;
-    int quit = 0;
     
     // Build extension list from config mappings
     const char **exts = malloc(config->num_mappings * sizeof(char*));
     if (!exts) {
         log_error("Out of memory building extension list");
         (void)closedir(dirp);
-        return -1;
+        result.status = PROCESS_FATAL;
+        return result;
     }
     for (int i = 0; i < config->num_mappings; i++) {
         exts[i] = config->mappings[i].ext;
     }
     
-    while ((dp = readdir(dirp)) != NULL && !quit)
+    while ((dp = readdir(dirp)) != NULL)
     {
         if (dp->d_type != DT_DIR) continue;
         if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
         
-        char path[NAME_MAX+1];
-        snprintf(path, NAME_MAX+1, "%s/%.*s", config->watch_dir, (int)dp->d_namlen, dp->d_name);
+        char path[PATH_MAX];
+        if (path_join(path, sizeof(path), config->watch_dir, dp->d_name) != 0) {
+            log_error("Source path is too long for %s", dp->d_name);
+            result.error_count++;
+            continue;
+        }
         
         struct stat s = {};
         int res = stat(path, &s);
         if (res != 0) {
             log_error("Failed to stat %s: %s", path, strerror(errno));
+            result.error_count++;
             continue;
         }
         
         // Check birth time to avoid re-processing
         struct timeval birthtimeval;
         TIMESPEC_TO_TIMEVAL(&birthtimeval, &s.st_birthtimespec);
-        if (timercmp(&birthtimeval, &context->last_run, <)) {
+        struct timeval modified;
+        TIMESPEC_TO_TIMEVAL(&modified, &s.st_mtimespec);
+        if (timercmp(&birthtimeval, &context->last_run, <) &&
+            timercmp(&modified, &context->last_run, <)) {
             continue;  // Already processed
         }
         
@@ -193,14 +243,19 @@ int process(context_t *context)
         const char *target_base = get_target_dir(config, band_info.file_type);
         if (!target_base) {
             log_error("No target directory configured for %s files", band_info.file_type);
+            result.error_count++;
             continue;
         }
         
         // Build destination paths
-        char dst_path[NAME_MAX+1];
-        char band_dst_path[NAME_MAX+1];
-        snprintf(dst_path, NAME_MAX+1, "%s/%s/%s", target_base, band_info.name, band_info.album);
-        snprintf(band_dst_path, NAME_MAX+1, "%s/%s", target_base, band_info.name);
+        char band_dst_path[PATH_MAX];
+        char dst_path[PATH_MAX];
+        if (path_join(band_dst_path, sizeof(band_dst_path), target_base, band_info.name) != 0 ||
+            path_join(dst_path, sizeof(dst_path), band_dst_path, band_info.album) != 0) {
+            log_error("Destination path is too long for %s", dp->d_name);
+            result.error_count++;
+            continue;
+        }
         
         // Check if already exists
         if (dir_exists(dst_path)) {
@@ -218,20 +273,22 @@ int process(context_t *context)
         
         // Confirmation prompt if enabled
         if (config->confirm) {
-            int confirm = confirm_action(dp->d_name, &band_info, path, dst_path, config->dry_run);
-            if (confirm == -1) {
-                quit = 1;
+            confirmation_result_t confirmation = confirm_action(dp->d_name, &band_info, path, dst_path, config->dry_run);
+            if (confirmation == CONFIRM_QUIT) {
+                result.status = PROCESS_QUIT;
                 break;
-            } else if (confirm == 0) {
-                if (skip_remaining) break;
+            } else if (confirmation == CONFIRM_SKIP_ALL) {
+                break;
+            } else if (confirmation == CONFIRM_SKIP_ONE) {
                 continue;
             }
         }
         
         // Create band directory if needed
-        if (!dir_exists(band_dst_path)) {
+        if (!config->dry_run && !dir_exists(band_dst_path)) {
             if (mkdir(band_dst_path, 0755)) {
                 log_error("Failed to create directory %s: %s", band_dst_path, strerror(errno));
+                result.error_count++;
                 continue;
             }
         }
@@ -251,6 +308,7 @@ int process(context_t *context)
                                           source_type == SOURCE_BANDCAMP ? SOURCE_TYPE_BANDCAMP : SOURCE_TYPE_QOBUZ,
                                           path, dst_path, "Failed to copy files", -1);
                 }
+                result.error_count++;
                 continue;
             }
             // Append success event
@@ -269,7 +327,18 @@ int process(context_t *context)
                 log_info("[DRY RUN] Would add %s to Apple Music", dst_path);
             } else {
                 log_info("Adding %s to Apple Music", dst_path);
-                add_folder_to_apple_music(dst_path);
+                int music_error = add_folder_to_apple_music(dst_path);
+                if (music_error != 0) {
+                    log_error("Failed to add %s to Apple Music: %s", dst_path, strerror(music_error));
+                    if (context->state_db) {
+                        state_db_append_event(context->state_db, EVENT_WATCHER_ERROR,
+                                              band_info.name, band_info.album,
+                                              band_info.file_type,
+                                              source_type == SOURCE_BANDCAMP ? SOURCE_TYPE_BANDCAMP : SOURCE_TYPE_QOBUZ,
+                                              path, dst_path, "Apple Music import failed", music_error);
+                    }
+                    result.error_count++;
+                }
             }
         }
     }
@@ -279,7 +348,7 @@ int process(context_t *context)
     context->last_run.tv_sec = start_of_run.tv_sec;
     context->last_run.tv_usec = start_of_run.tv_usec;
     
-    return quit ? -1 : 0;
+    return result;
 }
 
 int watch_folder(context_t *context)
@@ -293,51 +362,61 @@ int watch_folder(context_t *context)
     }
 
     int dirfd = open(context->config->watch_dir, O_EVTONLY);
-    if (dirfd <= 0) {
+    if (dirfd < 0) {
         log_error("Could not open %s for monitoring: %s", context->config->watch_dir, strerror(errno));
+        close(kq);
         return -1;
     }
    
-    unsigned int vnode_events = NOTE_LINK;
+    unsigned int vnode_events = NOTE_WRITE | NOTE_EXTEND | NOTE_LINK | NOTE_RENAME | NOTE_DELETE;
     struct kevent direvent;
     EV_SET(&direvent, dirfd, EVFILT_VNODE, EV_ADD | EV_CLEAR | EV_ENABLE, vnode_events, 0, (void *)user_data);
     struct kevent event_data;
 
     while (1) {
-        int event_count = kevent(kq, &direvent, 1, &event_data, 1, NULL);
-        if ((event_count < 0) || (event_data.flags == EV_ERROR)) {
+        struct timespec timeout = { .tv_sec = 30, .tv_nsec = 0 };
+        int event_count = kevent(kq, &direvent, 1, &event_data, 1, &timeout);
+        if (event_count < 0 || (event_count > 0 && event_data.flags == EV_ERROR)) {
             log_error("kevent error: %s", strerror(errno));
             break;
         }
-        if (event_count) {
+        struct timeval now;
+        gettimeofday(&now, NULL);
+        if (context->state_db) {
+            struct timeval diff;
+            timersub(&now, &context->last_heartbeat, &diff);
+            if (diff.tv_sec >= 30) {
+                state_db_heartbeat(context->state_db);
+                context->last_heartbeat = now;
+            }
+        }
+        if (event_count > 0) {
             context_t *ctx = (context_t *)(event_data.udata);
             log_trace("Event occurred on %s", ctx->config->watch_dir);
-            
-            // Update heartbeat every 30 seconds
-            struct timeval now;
-            gettimeofday(&now, NULL);
-            if (ctx->state_db) {
-                struct timeval diff;
-                timersub(&now, &ctx->last_heartbeat, &diff);
-                if (diff.tv_sec >= 30) {
-                    state_db_heartbeat(ctx->state_db);
-                    ctx->last_heartbeat = now;
-                }
+            process_result_t process_result = process(ctx);
+            if (process_result.status == PROCESS_QUIT) {
+                close(dirfd);
+                close(kq);
+                return 0;
             }
-            
-            if (process(ctx) != 0) {
-                break;  // Quit requested
+            if (process_result.status == PROCESS_FATAL) {
+                close(dirfd);
+                close(kq);
+                return -1;
             }
         }
     }
     
+    close(dirfd);
     close(kq);
-    return 0;
+    return -1;
 }
 
+#ifndef BCW_PROCESSOR_TESTS
 int main(int argc, char *argv[])
 {
     config_t config;
+    int exit_status = EXIT_SUCCESS;
     
     // Step 1: Quick scan for help request (before any initialization)
     for (int i = 1; i < argc; i++) {
@@ -434,27 +513,43 @@ int main(int argc, char *argv[])
     
     // Initial processing
     log_trace("Calling initial processing");
-    process(&context);
+    process_result_t initial_result = process(&context);
+    if (initial_result.status == PROCESS_FATAL ||
+        (config.oneshot && initial_result.error_count > 0)) {
+        exit_status = EXIT_FAILURE;
+    }
     
     // Enter watch loop if not oneshot
-    if (!config.oneshot) {
+    if (!config.oneshot && initial_result.status != PROCESS_QUIT &&
+        initial_result.status != PROCESS_FATAL) {
         log_info("Entering watch mode (press Ctrl+C to exit)");
-        watch_folder(&context);
+        if (watch_folder(&context) != 0) {
+            exit_status = EXIT_FAILURE;
+        }
     }
     
     log_info("Exiting bandcamp_watcher");
     
     // Shutdown state database
     if (context.state_db) {
-        if (config.oneshot) {
+        if (config.oneshot && exit_status == EXIT_SUCCESS) {
             state_db_append_event(context.state_db, EVENT_ONESHOT_COMPLETED, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0);
         }
+        if (exit_status != EXIT_SUCCESS) {
+            state_db_append_event(context.state_db, EVENT_WATCHER_ERROR, NULL, NULL, NULL, 0,
+                                  NULL, NULL, "Watcher exited after an error", exit_status);
+            state_db_set_runtime_status(context.state_db, RUNTIME_STATUS_ERROR,
+                                        "Watcher exited after an error");
+        }
         state_db_append_event(context.state_db, EVENT_WATCHER_STOPPED, NULL, NULL, NULL, 0, NULL, NULL, NULL, 0);
-        state_db_set_runtime_status(context.state_db, RUNTIME_STATUS_STOPPED, NULL);
+        if (exit_status == EXIT_SUCCESS) {
+            state_db_set_runtime_status(context.state_db, RUNTIME_STATUS_STOPPED, NULL);
+        }
         state_db_close(context.state_db);
     }
     
     // Cleanup
     config_free(&config);
-    return EXIT_SUCCESS;
+    return exit_status;
 }
+#endif

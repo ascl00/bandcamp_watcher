@@ -212,47 +212,64 @@ static const NSTimeInterval kStaleThreshold = 60.0;  // 60 seconds
 }
 
 - (NSArray<BCWAlbumEvent *> *)fetchRecentAlbums:(NSUInteger)limit {
-    // Fetch both album_copied (4) and copy_failed (6) events
-    return [self fetchRecentEventsOfTypes:@[@4, @6] limit:limit];
+    return [self fetchRecentEventsOfTypes:@[@(BCWEventTypeAlbumCopied),
+                                             @(BCWEventTypeCopyFailed)] limit:limit];
 }
 
 - (NSArray<BCWAlbumEvent *> *)fetchRecentErrors:(NSUInteger)limit {
-    // Fetch copy_failed events (type 6)
-    return [self fetchRecentEventsOfType:6 limit:limit];  // 6 = EVENT_COPY_FAILED
+    return [self fetchRecentEventsOfTypes:@[@(BCWEventTypeCopyFailed)] limit:limit];
 }
 
 - (NSArray<BCWAlbumEvent *> *)fetchRecentEvents:(NSUInteger)limit {
-    // Fetch all event types
-    return [self fetchRecentEventsOfType:0 limit:limit];  // 0 = any type
+    return [self fetchRecentEventsOfTypes:nil limit:limit];
 }
 
 #pragma mark - Private
 
-- (NSArray<BCWAlbumEvent *> *)fetchRecentEventsOfTypes:(NSArray<NSNumber *> *)types limit:(NSUInteger)limit {
+- (nullable BCWAlbumEvent *)eventFromStatement:(sqlite3_stmt *)stmt {
+    NSDate *timestamp = [self dateFromColumn:stmt index:0];
+    if (!timestamp) return nil;
+
+    const char *artist = (const char *)sqlite3_column_text(stmt, 2);
+    const char *album = (const char *)sqlite3_column_text(stmt, 3);
+    const char *fileType = (const char *)sqlite3_column_text(stmt, 4);
+    const char *sourcePath = (const char *)sqlite3_column_text(stmt, 6);
+    const char *destPath = (const char *)sqlite3_column_text(stmt, 7);
+
+    return [[BCWAlbumEvent alloc]
+            initWithTimestamp:timestamp
+            artist:artist ? [NSString stringWithUTF8String:artist] : @""
+            album:album ? [NSString stringWithUTF8String:album] : @""
+            fileType:fileType ? [NSString stringWithUTF8String:fileType] : @""
+            sourceType:(BCWSourceType)sqlite3_column_int(stmt, 5)
+            eventType:(BCWEventType)sqlite3_column_int(stmt, 1)
+            sourcePath:sourcePath ? [NSString stringWithUTF8String:sourcePath] : @""
+            destPath:destPath ? [NSString stringWithUTF8String:destPath] : @""];
+}
+
+- (NSArray<BCWAlbumEvent *> *)fetchRecentEventsOfTypes:(nullable NSArray<NSNumber *> *)types limit:(NSUInteger)limit {
     if (!_db) {
         [self refresh];
         if (!_db) return @[];
     }
     
-    // Build IN clause for types
-    NSMutableArray *placeholders = [NSMutableArray array];
-    for (int i = 0; i < types.count; i++) {
-        [placeholders addObject:@"?"];
+    NSMutableString *sql = [NSMutableString stringWithString:
+        @"SELECT ts, type, artist, album, file_type, source_type, src_path, dest_path FROM events"];
+    if (types.count > 0) {
+        NSMutableArray<NSString *> *placeholders = [NSMutableArray arrayWithCapacity:types.count];
+        for (NSUInteger i = 0; i < types.count; i++) {
+            [placeholders addObject:@"?"];
+        }
+        [sql appendFormat:@" WHERE type IN (%@)", [placeholders componentsJoinedByString:@","]];
     }
-    NSString *inClause = [placeholders componentsJoinedByString:@","];
-    
-    NSString *sqlStr = [NSString stringWithFormat:
-        @"SELECT ts, type, artist, album, file_type, source_type, src_path, dest_path "
-        @"FROM events WHERE type IN (%@) ORDER BY ts DESC LIMIT ?;", inClause];
-    
-    const char *sql = sqlStr.UTF8String;
+    [sql appendString:@" ORDER BY ts DESC LIMIT ?;"];
+
     sqlite3_stmt *stmt = NULL;
-    int rc = sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL);
+    int rc = sqlite3_prepare_v2(_db, sql.UTF8String, -1, &stmt, NULL);
     if (rc != SQLITE_OK) {
         return @[];
     }
     
-    // Bind type parameters
     int paramIdx = 1;
     for (NSNumber *typeNum in types) {
         sqlite3_bind_int(stmt, paramIdx++, typeNum.intValue);
@@ -262,106 +279,8 @@ static const NSTimeInterval kStaleThreshold = 60.0;  // 60 seconds
     NSMutableArray *events = [NSMutableArray array];
     
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        NSDate *ts = [self dateFromColumn:stmt index:0];
-        
-        int eventTypeVal = sqlite3_column_int(stmt, 1);
-        BCWEventType eventType = (BCWEventType)eventTypeVal;
-        
-        const char *artistCStr = (const char *)sqlite3_column_text(stmt, 2);
-        NSString *artist = artistCStr ? [[NSString alloc] initWithUTF8String:artistCStr] : @"";
-        
-        const char *albumCStr = (const char *)sqlite3_column_text(stmt, 3);
-        NSString *album = albumCStr ? [[NSString alloc] initWithUTF8String:albumCStr] : @"";
-        
-        const char *fileTypeCStr = (const char *)sqlite3_column_text(stmt, 4);
-        NSString *fileType = fileTypeCStr ? [[NSString alloc] initWithUTF8String:fileTypeCStr] : @"";
-        
-        int sourceTypeVal = sqlite3_column_int(stmt, 5);
-        BCWSourceType sourceType = (sourceTypeVal == 2) ? BCWSourceTypeQobuz : BCWSourceTypeBandcamp;
-        
-        const char *srcPathCStr = (const char *)sqlite3_column_text(stmt, 6);
-        NSString *srcPath = srcPathCStr ? [[NSString alloc] initWithUTF8String:srcPathCStr] : @"";
-        
-        const char *destPathCStr = (const char *)sqlite3_column_text(stmt, 7);
-        NSString *destPath = destPathCStr ? [[NSString alloc] initWithUTF8String:destPathCStr] : @"";
-        
-        BCWAlbumEvent *event = [[BCWAlbumEvent alloc] initWithTimestamp:ts
-                                                                  artist:artist
-                                                                   album:album
-                                                                fileType:fileType
-                                                              sourceType:sourceType
-                                                               eventType:eventType
-                                                              sourcePath:srcPath
-                                                                destPath:destPath];
-        [events addObject:event];
-    }
-    
-    sqlite3_finalize(stmt);
-    return [events copy];
-}
-
-- (NSArray<BCWAlbumEvent *> *)fetchRecentEventsOfType:(int)type limit:(NSUInteger)limit {
-    if (!_db) {
-        [self refresh];
-        if (!_db) return @[];
-    }
-    
-    const char *sql;
-    if (type > 0) {
-        sql = "SELECT ts, type, artist, album, file_type, source_type, src_path, dest_path "
-              "FROM events WHERE type = ? ORDER BY ts DESC LIMIT ?;";
-    } else {
-        sql = "SELECT ts, type, artist, album, file_type, source_type, src_path, dest_path "
-              "FROM events ORDER BY ts DESC LIMIT ?;";
-    }
-    
-    sqlite3_stmt *stmt = NULL;
-    int rc = sqlite3_prepare_v2(_db, sql, -1, &stmt, NULL);
-    if (rc != SQLITE_OK) {
-        return @[];
-    }
-    
-    int paramIdx = 1;
-    if (type > 0) {
-        sqlite3_bind_int(stmt, paramIdx++, type);
-    }
-    sqlite3_bind_int64(stmt, paramIdx, (sqlite3_int64)limit);
-    
-    NSMutableArray *events = [NSMutableArray array];
-    
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        NSDate *ts = [self dateFromColumn:stmt index:0];
-        
-        int eventTypeVal = sqlite3_column_int(stmt, 1);
-        BCWEventType eventType = (BCWEventType)eventTypeVal;
-        
-        const char *artistCStr = (const char *)sqlite3_column_text(stmt, 2);
-        NSString *artist = artistCStr ? [[NSString alloc] initWithUTF8String:artistCStr] : @"";
-        
-        const char *albumCStr = (const char *)sqlite3_column_text(stmt, 3);
-        NSString *album = albumCStr ? [[NSString alloc] initWithUTF8String:albumCStr] : @"";
-        
-        const char *fileTypeCStr = (const char *)sqlite3_column_text(stmt, 4);
-        NSString *fileType = fileTypeCStr ? [[NSString alloc] initWithUTF8String:fileTypeCStr] : @"";
-        
-        int sourceTypeVal = sqlite3_column_int(stmt, 5);
-        BCWSourceType sourceType = (sourceTypeVal == 2) ? BCWSourceTypeQobuz : BCWSourceTypeBandcamp;
-        
-        const char *srcPathCStr = (const char *)sqlite3_column_text(stmt, 6);
-        NSString *srcPath = srcPathCStr ? [[NSString alloc] initWithUTF8String:srcPathCStr] : @"";
-        
-        const char *destPathCStr = (const char *)sqlite3_column_text(stmt, 7);
-        NSString *destPath = destPathCStr ? [[NSString alloc] initWithUTF8String:destPathCStr] : @"";
-        
-        BCWAlbumEvent *event = [[BCWAlbumEvent alloc] initWithTimestamp:ts
-                                                                  artist:artist
-                                                                   album:album
-                                                                fileType:fileType
-                                                              sourceType:sourceType
-                                                               eventType:eventType
-                                                              sourcePath:srcPath
-                                                                destPath:destPath];
-        [events addObject:event];
+        BCWAlbumEvent *event = [self eventFromStatement:stmt];
+        if (event) [events addObject:event];
     }
     
     sqlite3_finalize(stmt);

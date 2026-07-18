@@ -81,6 +81,8 @@
 		FD35FB0F2F831DAE00824B8C /* Exceptions for "bandcamp_watcher" folder in "watcherlib" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				args.c,
+				args.h,
 				lib/bandcamp.c,
 				lib/bandcamp.h,
 				lib/config.c,
@@ -99,6 +101,7 @@
 				lib/utils.h,
 			);
 			publicHeaders = (
+				args.h,
 				lib/bandcamp.h,
 				lib/config.h,
 				lib/copy.h,
@@ -113,6 +116,7 @@
 		FD35FB102F831DC800824B8C /* Exceptions for "bandcamp_watcher" folder in "bandcamp_watcher" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				args.c,
 				lib/bandcamp.c,
 				lib/config.c,
 				lib/copy.c,

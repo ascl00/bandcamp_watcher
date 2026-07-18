@@ -133,7 +133,11 @@ int check_bandcamp_files(const char *path, band_info_t *band_info,
     }
     
     // We have exactly one audio type
-    strcpy(band_info->file_type, exts[found_type]);
+    if (snprintf(band_info->file_type, sizeof(band_info->file_type), "%s",
+                 exts[found_type]) >= (int)sizeof(band_info->file_type)) {
+        log_error("Configured extension is too long: %s", exts[found_type]);
+        return -1;
+    }
     
     // Check song naming pattern
     size_t song_files = files_that_look_like_songs(path, band_info->name, 

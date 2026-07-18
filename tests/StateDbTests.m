@@ -200,6 +200,64 @@
     XCTAssertLessThanOrEqual(count, 100, @"Events should be trimmed");
 }
 
+- (void)testDefaultTrimLimitDoesNotRemoveSmallHistory {
+    for (int i = 0; i < 10; i++) {
+        XCTAssertEqual(state_db_append_event(db, EVENT_ALBUM_COPIED, "Artist", "Album",
+                                             "flac", SOURCE_TYPE_BANDCAMP,
+                                             "/src", "/dst", NULL, 0), 0);
+    }
+    XCTAssertEqual(state_db_trim(db, 0), 0);
+    sqlite3 *raw = NULL;
+    XCTAssertEqual(sqlite3_open(dbPath, &raw), SQLITE_OK);
+    sqlite3_stmt *statement = NULL;
+    XCTAssertEqual(sqlite3_prepare_v2(raw, "SELECT COUNT(*) FROM events", -1, &statement, NULL), SQLITE_OK);
+    XCTAssertEqual(sqlite3_step(statement), SQLITE_ROW);
+    XCTAssertEqual(sqlite3_column_int(statement, 0), 10);
+    sqlite3_finalize(statement);
+    sqlite3_close(raw);
+}
+
+- (void)testGetRuntimeReturnsErrorBeforeInitialization {
+    XCTAssertEqual(state_db_get_runtime(db, NULL, NULL, NULL, NULL, NULL, NULL), -1);
+}
+
+- (void)testDefaultPathUsesXDGStateHomeAndCreatesDirectories {
+    state_db_close(db);
+    db = NULL;
+    char root[] = "/tmp/bcw_xdg_state_XXXXXX";
+    XCTAssertNotEqual(mkdtemp(root), NULL);
+    const char *original = getenv("XDG_STATE_HOME");
+    char *saved = original ? strdup(original) : NULL;
+    setenv("XDG_STATE_HOME", root, 1);
+    XCTAssertEqual(state_db_open(NULL, &db), 0);
+    char expected[PATH_MAX];
+    snprintf(expected, sizeof(expected), "%s/bandcamp_watcher/state.sqlite3", root);
+    XCTAssertEqual(strcmp(state_db_get_path(db), expected), 0);
+    XCTAssertEqual(access(expected, F_OK), 0);
+    state_db_close(db);
+    db = NULL;
+    unlink(expected);
+    char subdir[PATH_MAX];
+    snprintf(subdir, sizeof(subdir), "%s/bandcamp_watcher", root);
+    rmdir(subdir);
+    rmdir(root);
+    if (saved) { setenv("XDG_STATE_HOME", saved, 1); free(saved); } else unsetenv("XDG_STATE_HOME");
+}
+
+- (void)testDefaultPathFailsWithoutXDGOrHome {
+    state_db_close(db);
+    db = NULL;
+    const char *xdg = getenv("XDG_STATE_HOME");
+    const char *home = getenv("HOME");
+    char *savedXDG = xdg ? strdup(xdg) : NULL;
+    char *savedHome = home ? strdup(home) : NULL;
+    unsetenv("XDG_STATE_HOME");
+    unsetenv("HOME");
+    XCTAssertEqual(state_db_open(NULL, &db), -1);
+    if (savedXDG) { setenv("XDG_STATE_HOME", savedXDG, 1); free(savedXDG); }
+    if (savedHome) { setenv("HOME", savedHome, 1); free(savedHome); }
+}
+
 #pragma mark - Mode Variants
 
 - (void)testOneshotMode {

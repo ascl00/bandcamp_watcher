@@ -167,7 +167,11 @@ int check_qobuz_files(const char *path, band_info_t *band_info,
 
     // Set the detected file type
     if (first_type >= 0 && first_type < num_exts) {
-        strcpy(band_info->file_type, exts[first_type]);
+        if (snprintf(band_info->file_type, sizeof(band_info->file_type), "%s",
+                     exts[first_type]) >= (int)sizeof(band_info->file_type)) {
+            log_error("Configured extension is too long: %s", exts[first_type]);
+            return -1;
+        }
     } else {
         log_error("Could not determine file type in %s", path);
         return -1;

@@ -12,10 +12,30 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/syslimits.h>
+#include <unistd.h>
+
+#include "utils.h"
 
 #define BUFSIZE 128*1024 // in general 128KB should be an efficient blocksize for copying
 
 typedef unsigned char byte_t;
+
+static void remove_partial_clone(const char *path)
+{
+    DIR *dir = opendir(path);
+    if (!dir) return;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_type != DT_REG) continue;
+        char file_path[PATH_MAX];
+        if (path_join(file_path, sizeof(file_path), path, entry->d_name) == 0) {
+            (void)unlink(file_path);
+        }
+    }
+    (void)closedir(dir);
+    (void)rmdir(path);
+}
 
 int dir_exists(const char* path)
 {
@@ -98,17 +118,19 @@ int copy(const char* src_file_name, const char* dst_file_name)
 
 int clone(const char *src_path, const char *dst_path)
 {
+    int created_destination = 0;
     if(dir_exists(src_path) == 0)
     {
         return ENOENT;
     }
     if(dir_exists(dst_path) == 0)
     {
-        if(mkdir(dst_path, 755))
+        if(mkdir(dst_path, 0755))
         {
             perror(dst_path);
             return errno;
         }
+        created_destination = 1;
     }
     DIR *d = opendir(src_path);
     
@@ -123,12 +145,22 @@ int clone(const char *src_path, const char *dst_path)
     {
         if (de->d_type == DT_REG)
         {
-            char full_src_path[NAME_MAX+1];
-            sprintf(full_src_path, "%s/%s", src_path, de->d_name);
-            char full_dst_path[NAME_MAX+1];
-            sprintf(full_dst_path, "%s/%s", dst_path, de->d_name);
+            char full_src_path[PATH_MAX];
+            char full_dst_path[PATH_MAX];
+            if (path_join(full_src_path, sizeof(full_src_path), src_path, de->d_name) != 0 ||
+                path_join(full_dst_path, sizeof(full_dst_path), dst_path, de->d_name) != 0) {
+                (void)closedir(d);
+                if (created_destination) remove_partial_clone(dst_path);
+                return ENAMETOOLONG;
+            }
 
-            copy(full_src_path,full_dst_path);
+            int copy_error = copy(full_src_path, full_dst_path);
+            if (copy_error != 0) {
+                (void)unlink(full_dst_path);
+                (void)closedir(d);
+                if (created_destination) remove_partial_clone(dst_path);
+                return copy_error;
+            }
         }
     }
     
@@ -136,4 +168,3 @@ int clone(const char *src_path, const char *dst_path)
         
     return 0;
 }
-

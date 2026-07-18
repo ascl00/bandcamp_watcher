@@ -125,7 +125,9 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
     {
         if(strcmp(parens, "(pre-order)") == 0)
         {
-            parens--;
+            if (parens > album && isspace((unsigned char)parens[-1])) {
+                parens--;
+            }
             *parens='\0';
         }
     }
@@ -139,16 +141,10 @@ int parse_folder_name(const char *folder, char *name, size_t name_len,
     return 0;
 }
 
-const char *band_info_string(band_info_t *bi)
+const char *band_info_string(const band_info_t *bi)
 {
     static char ret[NAME_MAX+1];
-    ret[0]='\0';
-    strcat(ret, bi->name);
-    strcat(ret, " -> ");
-    strcat(ret, bi->album);
-    strcat(ret, " (");
-    strcat(ret, bi->file_type);
-    strcat(ret, ")");
+    snprintf(ret, sizeof(ret), "%s -> %s (%s)", bi->name, bi->album, bi->file_type);
     return ret;
 }
 

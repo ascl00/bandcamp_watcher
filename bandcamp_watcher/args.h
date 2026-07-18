@@ -8,7 +8,7 @@
 #ifndef ARGS_H
 #define ARGS_H
 
-#include "lib/config.h"
+#include "config.h"
 
 // Parse command line arguments into config
 // Already initialized with defaults and config file values

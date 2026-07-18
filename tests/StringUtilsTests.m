@@ -89,13 +89,8 @@
 }
 
 - (void)testExtensionNoMatchNoExt {
-    // BUG: Function returns 0 (appears to match) when filename is shorter than extension
-    // This is because p winds back before start of string, then returns strcasecmp result
-    // Current behavior (bug):
-    XCTAssertEqual(is_matching_extension("song", ".flac"), 0);  // BUG: returns 0
-    // "song." vs ".flac" - p winds back to point at "song" effectively
-    // strcasecmp will compare and find difference
-    XCTAssertNotEqual(is_matching_extension("song.", ".flac"), 0);  // Actually doesn't match
+    XCTAssertNotEqual(is_matching_extension("song", ".flac"), 0);
+    XCTAssertNotEqual(is_matching_extension("song.", ".flac"), 0);
 }
 
 - (void)testExtensionNoMatchPartial {
@@ -105,7 +100,13 @@
 }
 
 - (void)testExtensionEmptyFilename {
-    XCTAssertEqual(is_matching_extension("", ".flac"), 0);  // winds back before start, returns 0
+    XCTAssertNotEqual(is_matching_extension("", ".flac"), 0);
+}
+
+- (void)testExtensionRejectsNullAndEmptyExtension {
+    XCTAssertNotEqual(is_matching_extension(NULL, ".flac"), 0);
+    XCTAssertNotEqual(is_matching_extension("song.flac", NULL), 0);
+    XCTAssertNotEqual(is_matching_extension("song.flac", ""), 0);
 }
 
 - (void)testExtensionWithPath {
@@ -118,6 +119,25 @@
     XCTAssertNotEqual(is_matching_extension("song.flac1", ".flac"), 0);
     // .flacs should not match .flac
     XCTAssertNotEqual(is_matching_extension("song.flacs", ".flac"), 0);
+}
+
+#pragma mark - path_join tests
+
+- (void)testPathJoinAddsSeparator {
+    char path[64];
+    XCTAssertEqual(path_join(path, sizeof(path), "/tmp/music", "album"), 0);
+    XCTAssertEqual(strcmp(path, "/tmp/music/album"), 0);
+}
+
+- (void)testPathJoinAvoidsDuplicateSeparator {
+    char path[64];
+    XCTAssertEqual(path_join(path, sizeof(path), "/tmp/music/", "album"), 0);
+    XCTAssertEqual(strcmp(path, "/tmp/music/album"), 0);
+}
+
+- (void)testPathJoinRejectsTruncation {
+    char path[8];
+    XCTAssertNotEqual(path_join(path, sizeof(path), "/tmp/music", "album"), 0);
 }
 
 #pragma mark - trim tests
