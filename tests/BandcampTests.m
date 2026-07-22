@@ -146,6 +146,41 @@
     XCTAssertEqual(count, 1);
 }
 
+- (void)testFilesThatLookLikeSongsCompilationArtists {
+    const char *filenames[] = {
+        "Artist One - Futuro - Compiled & Mixed - 01 First Track.flac",
+        "Artist Two & Guest - Futuro - Compiled & Mixed - 02 Second Track.flac",
+        "Various Artists, - Futuro - Compiled & Mixed - 03 Continuous Mix.flac"
+    };
+
+    for (size_t i = 0; i < sizeof(filenames) / sizeof(filenames[0]); i++) {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/%s", self->testDir, filenames[i]);
+        int fd = open(path, O_CREAT|O_WRONLY, 0644);
+        close(fd);
+    }
+
+    size_t count = files_that_look_like_songs(self->testDir,
+                                               "Compilation Curator",
+                                               "Futuro - Compiled & Mixed",
+                                               "flac");
+    XCTAssertEqual(count, 3);
+}
+
+- (void)testFilesThatLookLikeSongsCompilationRequiresTrackNumber {
+    char path[512];
+    snprintf(path, sizeof(path),
+             "%s/Artist - Album - Not A Number.flac", self->testDir);
+    int fd = open(path, O_CREAT|O_WRONLY, 0644);
+    close(fd);
+
+    size_t count = files_that_look_like_songs(self->testDir,
+                                               "Compilation Curator",
+                                               "Album",
+                                               "flac");
+    XCTAssertEqual(count, 0);
+}
+
 #pragma mark - check_bandcamp_files tests
 
 - (void)testCheckBandcampFilesNoAudioFiles {

@@ -15,8 +15,9 @@
 #include <ctype.h>
 #include <limits.h>
 
-/* Count files matching Bandcamp song naming pattern
- * Files should be named: "Band - Album - NN Song Name.ext"
+/* Count files matching Bandcamp song naming patterns
+ * Files are normally named: "Band - Album - NN Song Name.ext"
+ * Compilation tracks may use: "Track Artist - Album - NN Song Name.ext"
  * Returns count of matching files
  */
 size_t files_that_look_like_songs(const char *path, const char *band_name, 
@@ -57,6 +58,32 @@ size_t files_that_look_like_songs(const char *path, const char *band_name,
             {
                 // Looks good!
                 count++;
+                continue;
+            }
+
+            // Bandcamp compilation downloads use each track's artist in the
+            // filename, rather than the album artist from the folder name.
+            char album_marker[NAME_MAX+1];
+            int marker_chars = snprintf(album_marker, sizeof(album_marker),
+                                        " - %s - ", album_name);
+            if (marker_chars < 0 || marker_chars >= (int)sizeof(album_marker)) {
+                continue;
+            }
+
+            const char *candidate = de->d_name;
+            size_t marker_len = (size_t)marker_chars;
+            while ((candidate = strchr(candidate, ' ')) != NULL) {
+                if (name_compare(candidate, album_marker, marker_len) == 0) {
+                    const char *track = candidate + marker_len;
+                    if (strlen(track) >= 3 &&
+                        isdigit((unsigned char)track[0]) &&
+                        isdigit((unsigned char)track[1]) &&
+                        isspace((unsigned char)track[2])) {
+                        count++;
+                    }
+                    break;
+                }
+                candidate++;
             }
         }
     }
