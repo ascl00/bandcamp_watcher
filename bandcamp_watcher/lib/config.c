@@ -206,6 +206,10 @@ static int load_config_file(config_t *config, const char *path) {
             if (strcasecmp(key, "watch_dir") == 0) {
                 free(config->watch_dir);
                 config->watch_dir = strdup(value);
+            } else if (strcasecmp(key, "smb_url") == 0) {
+                free(config->smb_url);
+                config->smb_url = strdup(value);
+                if (!config->smb_url) { fclose(f); return -1; }
             } else if (strcasecmp(key, "log_level") == 0) {
                 config->log_level = parse_log_level(value);
             } else if (strcasecmp(key, "apple_music") == 0) {
@@ -357,6 +361,13 @@ int config_validate(const config_t *config) {
         return -1;
     }
     
+    if (config->smb_url && (strncmp(config->smb_url, "smb://", 6) != 0 ||
+                            !strchr(config->smb_url + 6, '/') ||
+                            !strchr(config->smb_url + 6, '/')[1])) {
+        fprintf(stderr, "Error: smb_url must be an smb://server/share URL\n");
+        return -1;
+    }
+
     // Check that all mappings have valid target directories
     for (int i = 0; i < config->num_mappings; i++) {
         if (!config->mappings[i].target_dir || !*config->mappings[i].target_dir) {
@@ -373,6 +384,8 @@ int config_validate(const config_t *config) {
 void config_free(config_t *config) {
     if (!config) return;
     
+    free(config->smb_url);
+    config->smb_url = NULL;
     free(config->watch_dir);
     config->watch_dir = NULL;
     

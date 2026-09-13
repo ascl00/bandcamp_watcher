@@ -278,6 +278,34 @@ log stream --predicate 'process == "bandcamp_watcher"'
 
 ## Troubleshooting
 
+### Unavailable network destinations
+
+In watch mode, failed scans are retried after a 30-second idle timeout, as well
+as on changes to the watched directory. If an SMB share is disconnected, source
+albums remain eligible for processing when the destination becomes available
+again; no new download or watcher restart is needed. The configured destination
+base must already exist; the watcher does not create missing share paths.
+
+To also request automatic reconnection, add this global setting **before**
+`[extensions]` in your config:
+
+```ini
+smb_url = smb://nick@freenas._smb._tcp.local/Multimedia
+```
+
+Reconnection uses macOS NetFS with authentication dialogs disabled. Run the
+watcher as your logged-in user so macOS can use that user's saved credentials;
+if authentication fails, connect in Finder and save the credentials there.
+Do not put a password in the config URL. Reconnection runs asynchronously and
+attempts are limited to once per minute while a destination is unavailable.
+The watcher checks the configured destination path again on subsequent scans;
+it does not redirect copies if macOS mounts the share under another name.
+
+Dry runs never reconnect. Oneshot mode makes one scan (it may request a mount,
+but does not wait for it) and exits with a failure status if an album cannot be
+processed. Use watch mode for unattended recovery.
+
+
 ### "Watch directory does not exist"
 The directory specified with `-w` or in the config file doesn't exist. Create it or specify a different path.
 

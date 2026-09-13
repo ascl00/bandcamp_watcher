@@ -19,6 +19,7 @@ typedef struct {
 
 // Main configuration structure
 typedef struct {
+    char *smb_url;             // Optional SMB share to reconnect using macOS credentials
     char *watch_dir;           // Directory to watch (default: ~/Downloads)
     ext_mapping_t *mappings;   // Dynamic array of extension mappings
     int num_mappings;          // Count of mappings

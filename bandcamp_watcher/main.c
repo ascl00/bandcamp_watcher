@@ -19,6 +19,9 @@
 #include <sys/wait.h>
 #include <limits.h>
 #include <spawn.h>
+#include <NetFS/NetFS.h>
+#include <stdatomic.h>
+#include <time.h>
 
 #include "log.h"         // logging functions
 #include "copy.h"
@@ -33,6 +36,7 @@ typedef struct {
     config_t *config;
     struct timeval last_run;  // last time we processed an event
     state_db_t *state_db;
+    int retry_pending;  // failed scan needs another attempt even without a filesystem event
     struct timeval last_heartbeat;  // last time we wrote heartbeat
 } context_t;
 
@@ -95,6 +99,65 @@ int add_folder_to_apple_music(const char *folder)
     int status = 0;
     if (waitpid(pid, &status, 0) < 0) return errno;
     return WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : EIO;
+}
+
+// Only the watcher thread owns the request and cooldown. The callback publishes
+// completion atomically and never references the scan's stack or configuration.
+static AsyncRequestID mount_request;
+static atomic_int mount_finished;
+static atomic_int mount_result;
+static time_t last_mount_attempt;
+static dispatch_queue_t mount_queue;
+static __typeof__(&NetFSMountURLAsync) start_smb_mount = NetFSMountURLAsync;
+
+static void reconnect_smb(const config_t *config)
+{
+    if (!config->smb_url || config->dry_run) return;
+    time_t now = (time_t)clock_gettime_nsec_np(CLOCK_MONOTONIC) / 1000000000;
+    if (mount_request) {
+        if (atomic_load(&mount_finished)) {
+            int status = atomic_load(&mount_result);
+            if (status != 0) log_warn("SMB reconnection failed (code %d); will retry", status);
+            else log_info("SMB reconnection completed; checking destination again on retry");
+            mount_request = NULL;
+        } else if (now - last_mount_attempt >= 30) {
+            NetFSMountURLCancel(mount_request);
+            // Drain an already queued completion before reusing callback state.
+            dispatch_sync(mount_queue, ^{});
+            mount_request = NULL;
+            log_warn("SMB reconnection timed out; will retry");
+        } else {
+            return;
+        }
+    }
+    if (last_mount_attempt && now - last_mount_attempt < 60) return;
+    last_mount_attempt = now;
+    CFURLRef url = CFURLCreateWithBytes(NULL, (const UInt8 *)config->smb_url,
+                                       strlen(config->smb_url), kCFStringEncodingUTF8, NULL);
+    CFMutableDictionaryRef options = CFDictionaryCreateMutable(NULL, 0,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    if (!url || !options) {
+        if (url) CFRelease(url);
+        if (options) CFRelease(options);
+        log_warn("Cannot allocate SMB reconnection request");
+        return;
+    }
+    CFDictionarySetValue(options, kNAUIOptionKey, kNAUIOptionNoUI);
+    atomic_store(&mount_finished, 0);
+    log_info("Requesting SMB reconnection using macOS saved credentials");
+    if (!mount_queue) mount_queue = dispatch_queue_create("bandcamp_watcher.mount", DISPATCH_QUEUE_SERIAL);
+    int status = start_smb_mount(url, NULL, NULL, NULL, options, NULL,
+        &mount_request, mount_queue,
+        ^(int result, AsyncRequestID request, CFArrayRef mountpoints) {
+            atomic_store(&mount_result, result);
+            atomic_store(&mount_finished, 1);
+        });
+    CFRelease(options);
+    CFRelease(url);
+    if (status != 0) {
+        mount_request = NULL;
+        log_warn("Cannot start SMB reconnection (code %d); will retry", status);
+    }
 }
 
 // Get target directory for a file type extension
@@ -284,6 +347,14 @@ static process_result_t process(context_t *context)
             }
         }
         
+        // Never create a missing destination base: it may be an offline mount.
+        if (!config->dry_run && !dir_exists(target_base)) {
+            reconnect_smb(config);
+            log_warn("Destination unavailable: %s; leaving %s for a later retry", target_base, path);
+            result.error_count++;
+            continue;
+        }
+
         // Create band directory if needed
         if (!config->dry_run && !dir_exists(band_dst_path)) {
             if (mkdir(band_dst_path, 0755)) {
@@ -345,8 +416,12 @@ static process_result_t process(context_t *context)
     
     free(exts);
     (void)closedir(dirp);
-    context->last_run.tv_sec = start_of_run.tv_sec;
-    context->last_run.tv_usec = start_of_run.tv_usec;
+    context->retry_pending = result.error_count > 0;
+    // Keep the scan watermark until every eligible folder has been handled.
+    // Successful copies are skipped by the existing-destination check on retry.
+    if (!context->retry_pending) {
+        context->last_run = start_of_run;
+    }
     
     return result;
 }
@@ -390,8 +465,8 @@ int watch_folder(context_t *context)
                 context->last_heartbeat = now;
             }
         }
-        if (event_count > 0) {
-            context_t *ctx = (context_t *)(event_data.udata);
+        if (event_count > 0 || context->retry_pending) {
+            context_t *ctx = context;
             log_trace("Event occurred on %s", ctx->config->watch_dir);
             process_result_t process_result = process(ctx);
             if (process_result.status == PROCESS_QUIT) {
@@ -548,6 +623,8 @@ int main(int argc, char *argv[])
         state_db_close(context.state_db);
     }
     
+    if (mount_request && !atomic_load(&mount_finished)) NetFSMountURLCancel(mount_request);
+
     // Cleanup
     config_free(&config);
     return exit_status;

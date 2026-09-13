@@ -7,6 +7,11 @@ watch_dir = ~/Downloads
 log_level = info
 apple_music = true
 
+# Optional: reconnect this share when a destination is unavailable.
+# Uses macOS saved credentials without showing password dialogs.
+# No password should be stored in this URL.
+# smb_url = smb://nick@freenas._smb._tcp.local/Multimedia
+
 # Extension mappings [extensions]
 # Format: extension = /path/to/destination
 # Supported extensions: flac, aac, m4a, mp3, alac

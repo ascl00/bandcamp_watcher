@@ -54,6 +54,24 @@ extern int is_apple_music_format(const char *ext);
     config_free(&config);
 }
 
+- (void)testLoadsSMBReconnectionURL {
+    char filePath[1024];
+    snprintf(filePath, sizeof(filePath), "%s/config", testDir);
+    FILE *file = fopen(filePath, "w");
+    XCTAssertNotEqual(file, NULL);
+    if (!file) return;
+    fprintf(file, "watch_dir = %s\nsmb_url = smb://nick@freenas._smb._tcp.local/Multimedia\n", testDir);
+    fclose(file);
+    config_t config;
+    XCTAssertEqual(config_load_file(&config, filePath), 0);
+    XCTAssertEqual(strcmp(config.smb_url, "smb://nick@freenas._smb._tcp.local/Multimedia"), 0);
+    XCTAssertEqual(config_validate(&config), 0);
+    free(config.smb_url);
+    config.smb_url = strdup("https://server/share");
+    XCTAssertEqual(config_validate(&config), -1);
+    config_free(&config);
+}
+
 #pragma mark - config_add_mapping tests
 
 - (void)testAddMappingBasic {

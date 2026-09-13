@@ -3,6 +3,16 @@
 #define BCW_PROCESSOR_TESTS 1
 #include "../bandcamp_watcher/main.c"
 
+static int mountCalls;
+static int mountSuppressesUI;
+static int fakeMount(CFURLRef url, CFURLRef path, CFStringRef user, CFStringRef password,
+                     CFMutableDictionaryRef options, CFMutableDictionaryRef mountOptions,
+                     AsyncRequestID *request, dispatch_queue_t queue, NetFSMountURLBlock callback) {
+    mountCalls++;
+    mountSuppressesUI = CFEqual(CFDictionaryGetValue(options, kNAUIOptionKey), kNAUIOptionNoUI);
+    return EHOSTUNREACH;
+}
+
 @interface ProcessorTests : XCTestCase {
     char root[PATH_MAX];
     char watch[PATH_MAX];
@@ -89,6 +99,53 @@
     context_t context = {.config = &config, .last_run = {0, 0}, .state_db = NULL};
     process_result_t result = process(&context);
     XCTAssertEqual(result.error_count, 0u);
+    config_free(&config);
+}
+
+- (void)testUnavailableDestinationRetriesUnchangedAlbumAfterRecovery {
+    [self createAlbum];
+    config_t config = [self configWithDryRun:NO];
+    XCTAssertEqual(rmdir(target), 0);
+    context_t context = {.config = &config, .last_run = {0, 0}};
+    process_result_t result = process(&context);
+    XCTAssertEqual(result.error_count, 1u);
+    XCTAssertTrue(context.retry_pending);
+    XCTAssertEqual(context.last_run.tv_sec, 0);
+    XCTAssertFalse(dir_exists(target));
+
+    // Repeated failures must not advance past the unchanged source folder.
+    XCTAssertEqual(process(&context).error_count, 1u);
+    XCTAssertEqual(mkdir(target, 0755), 0);
+    XCTAssertEqual(process(&context).error_count, 0u);
+    XCTAssertFalse(context.retry_pending);
+    XCTAssertGreaterThan(context.last_run.tv_sec, 0);
+    char copied[PATH_MAX];
+    snprintf(copied, sizeof(copied), "%s/Artist/Album/Artist - Album - 01 Track.flac", target);
+    XCTAssertEqual(access(copied, F_OK), 0);
+    config_free(&config);
+}
+
+- (void)testReconnectionIsOptInSuppressesUIAndThrottlesFailures {
+    config_t config = [self configWithDryRun:NO];
+    start_smb_mount = fakeMount;
+    mountCalls = 0;
+    last_mount_attempt = 0;
+    reconnect_smb(&config);
+    XCTAssertEqual(mountCalls, 0);
+    config.smb_url = strdup("smb://nick@freenas._smb._tcp.local/Multimedia");
+    config.dry_run = 1;
+    reconnect_smb(&config);
+    XCTAssertEqual(mountCalls, 0);
+    config.dry_run = 0;
+    reconnect_smb(&config);
+    reconnect_smb(&config);
+    XCTAssertEqual(mountCalls, 1);
+    XCTAssertTrue(mountSuppressesUI);
+    last_mount_attempt -= 61;
+    reconnect_smb(&config);
+    XCTAssertEqual(mountCalls, 2);
+    start_smb_mount = NetFSMountURLAsync;
+    last_mount_attempt = 0;
     config_free(&config);
 }
 

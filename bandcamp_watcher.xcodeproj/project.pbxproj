@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        BC0000010000000000000001 /* NetFS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC0000010000000000000003; };
+        BC0000010000000000000002 /* NetFS.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC0000010000000000000003; };
 		FD35FB142F831EF000824B8C /* libwatcherlib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FD35FB072F831D8800824B8C /* libwatcherlib.a */; };
 		FD35FB222F831FE100824B8C /* libwatcherlib.a in Frameworks */ = {isa = PBXBuildFile; fileRef = FD35FB072F831D8800824B8C /* libwatcherlib.a */; };
 		FD35FC462F83CADC00824B8C /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD35FC452F83CADC00824B8C /* AppKit.framework */; };
@@ -58,6 +60,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        BC0000010000000000000003 /* NetFS.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetFS.framework; path = System/Library/Frameworks/NetFS.framework; sourceTree = SDKROOT; };
 		FD35FB072F831D8800824B8C /* libwatcherlib.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libwatcherlib.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		FD35FB1E2F831FE100824B8C /* tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FD35FB4B2F8320E400824B8C /* TestPlan.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = TestPlan.xctestplan; path = tests/TestPlan.xctestplan; sourceTree = "<group>"; };
@@ -178,6 +181,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD35FB222F831FE100824B8C /* libwatcherlib.a in Frameworks */,
+                BC0000010000000000000002 /* NetFS.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -210,6 +214,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FD35FB142F831EF000824B8C /* libwatcherlib.a in Frameworks */,
+                BC0000010000000000000001 /* NetFS.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
